@@ -1,4 +1,5 @@
 import { BodyMetricsEntry, DailyReadinessEntry, UserProfile, TrainingPlan, SessionCompletion, UserZoneProfile } from './types'
+import { hydrateTrainingPlanDates } from './planDateHydration'
 
 /**
  * Metadata tracking Intervals sync status and history
@@ -254,10 +255,12 @@ class StorageManager {
     const tx = this.db!.transaction(['plans'], 'readwrite')
     const store = tx.objectStore('plans')
 
+    const normalizedPlan = hydrateTrainingPlanDates(plan) || plan
+
     const storedPlan: StoredPlan = {
       id: planId,
-      plan,
-      originalPlan: isNew ? { ...plan } : plan,
+      plan: normalizedPlan,
+      originalPlan: isNew ? { ...normalizedPlan } : normalizedPlan,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       edits: [],
@@ -281,7 +284,7 @@ class StorageManager {
     const store = tx.objectStore('plans')
     return new Promise((resolve, reject) => {
       const request = store.get(planId)
-      request.onsuccess = () => resolve(request.result)
+      request.onsuccess = () => resolve(hydrateStoredPlan(request.result))
       request.onerror = () => reject(request.error)
     })
   }
@@ -296,7 +299,12 @@ class StorageManager {
     const store = tx.objectStore('plans')
     return new Promise((resolve, reject) => {
       const request = store.getAll()
-      request.onsuccess = () => resolve(request.result)
+      request.onsuccess = () => {
+        const hydrated = request.result
+          .map((entry) => hydrateStoredPlan(entry))
+          .filter((entry): entry is StoredPlan => entry !== undefined)
+        resolve(hydrated)
+      }
       request.onerror = () => reject(request.error)
     })
   }
@@ -717,6 +725,21 @@ class StorageManager {
       request.onsuccess = () => resolve((request.result || []).sort((a, b) => a.date.localeCompare(b.date)))
       request.onerror = () => reject(request.error)
     })
+  }
+}
+
+function hydrateStoredPlan(stored: StoredPlan | undefined): StoredPlan | undefined {
+  if (!stored) {
+    return undefined
+  }
+
+  const hydratedPlan = hydrateTrainingPlanDates(stored.plan) || stored.plan
+  const hydratedOriginal = hydrateTrainingPlanDates(stored.originalPlan) || hydratedPlan
+
+  return {
+    ...stored,
+    plan: hydratedPlan,
+    originalPlan: hydratedOriginal,
   }
 }
 

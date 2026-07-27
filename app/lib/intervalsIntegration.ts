@@ -1,6 +1,7 @@
-import type { DetectedChange, SyncResult, UserProfile } from './types'
+import type { DetectedChange, SyncResult, TrainingPlan, UserProfile } from './types'
 import { storage } from './storage'
 import { buildIntervalsCredentialHeaders, getIntervalsCredentials } from './integrationCredentials'
+import { hydrateTrainingPlanDates } from './planDateHydration'
 
 
 type IntervalRide = {
@@ -597,7 +598,7 @@ export async function fetchIntervalsBlockedDates(oldest: string, newest: string)
  * Fetch training plans that were previously synced to Intervals.icu
  * Returns reconstructed TrainingPlan objects from Intervals events
  */
-export async function fetchPlansFromIntervals(): Promise<{ plans: any[]; success: boolean; error?: string }> {
+export async function fetchPlansFromIntervals(): Promise<{ plans: TrainingPlan[]; success: boolean; error?: string }> {
   try {
     const credentials = await getIntervalsCredentials()
     if (!credentials) {
@@ -615,14 +616,18 @@ export async function fetchPlansFromIntervals(): Promise<{ plans: any[]; success
 
     const result = (await response.json()) as {
       success: boolean
-      plans?: any[]
+      plans?: unknown[]
       count?: number
       error?: string
     }
 
     if (result.success && result.plans && result.plans.length > 0) {
+      const hydratedPlans = result.plans
+        .map((rawPlan) => hydrateTrainingPlanDates(rawPlan))
+        .filter((plan): plan is TrainingPlan => plan !== null)
+
       console.info(`Fetched ${result.count || 0} plan(s) from Intervals.icu`)
-      return { plans: result.plans, success: true }
+      return { plans: hydratedPlans, success: true }
     }
 
     return { plans: [], success: true }
