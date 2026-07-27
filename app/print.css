@@ -1,0 +1,134 @@
+/* Global print styles - applies to all print contexts */
+
+@media print {
+  /* Hide interactive elements */
+  button,
+  [role="button"],
+  .actions,
+  .no-print,
+  [aria-hidden="true"] {
+    display: none !important;
+  }
+
+  /* Optimize page setup */
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    background: white;
+    color: #000;
+  }
+
+  /* Ensure content is readable */
+  * {
+    background: white !important;
+    color: #000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Proper spacing and breaks */
+  body > * {
+    page-break-inside: avoid;
+  }
+
+  /* Typography */
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 10pt;
+    line-height: 1.4;
+  }
+
+  h1 {
+    font-size: 18pt;
+    margin: 12pt 0 6pt 0;
+    page-break-after: avoid;
+  }
+
+  h2 {
+    font-size: 14pt;
+    margin: 10pt 0 4pt 0;
+    page-break-after: avoid;
+  }
+
+  h3 {
+    font-size: 12pt;
+    margin: 8pt 0 3pt 0;
+    page-break-after: avoid;
+  }
+
+  p,
+  li {
+    margin: 4pt 0;
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* Border and dividers */
+  hr {
+    border: none;
+    border-top: 1px solid #000;
+    margin: 8pt 0;
+  }
+
+  /* Links */
+  a {
+    text-decoration: none;
+    color: #000;
+  }
+
+  a[href]:after {
+    content: "";
+  }
+
+  /* Tables */
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 8pt 0;
+  }
+
+  th,
+  td {
+    border: 1px solid #999;
+    padding: 4pt;
+    text-align: left;
+  }
+
+  th {
+    background: #f0f0f0 !important;
+    font-weight: bold;
+  }
+
+  /* Lists */
+  ul,
+  ol {
+    margin: 4pt 0;
+    padding-left: 20pt;
+  }
+
+  li {
+    margin: 2pt 0;
+  }
+
+  /* Images and media */
+  img {
+    max-width: 100%;
+    page-break-inside: avoid;
+  }
+
+  svg {
+    display: none;
+  }
+
+  /* Code blocks */
+  pre,
+  code {
+    background: #f5f5f5 !important;
+    border: 1px solid #ddd;
+    padding: 4pt;
+    font-family: 'Courier New', monospace;
+    font-size: 9pt;
+    page-break-inside: avoid;
+  }
+}

@@ -1,0 +1,251 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 44, 69, 0.38);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 1rem;
+  backdrop-filter: blur(3px);
+}
+
+.modal {
+  background: #ffffff;
+  border: 1px solid #c9dced;
+  border-radius: 12px;
+  max-width: 820px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 54px rgba(17, 57, 93, 0.22);
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid #d9e6f3;
+  background: #f4f8fd;
+
+  h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 800;
+    color: #24486c;
+  }
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  color: #6080a0;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+
+  &:hover {
+    background: #e8f0f9;
+  }
+}
+
+.body {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  flex: 1;
+}
+
+.intro {
+  font-size: 0.86rem;
+  color: #47647e;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.thresholdRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  max-width: 400px;
+}
+
+.thresholdField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+
+  label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #364f68;
+    letter-spacing: 0.03em;
+  }
+}
+
+.input {
+  border: 1px solid #c4d6e8;
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.92rem;
+  color: #1f3554;
+
+  &:focus {
+    outline: none;
+    border-color: #4f87c6;
+    box-shadow: 0 0 0 2px rgba(79, 135, 198, 0.18);
+  }
+}
+
+.zoneTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+
+  thead th {
+    text-align: left;
+    padding: 0.35rem 0.5rem;
+    color: #4a6680;
+    font-weight: 700;
+    font-size: 0.74rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border-bottom: 2px solid #d3e4f4;
+    white-space: nowrap;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid #eaf1f8;
+
+    &:hover {
+      background: #f5f9fd;
+    }
+  }
+
+  td {
+    padding: 0.4rem 0.5rem;
+    vertical-align: middle;
+  }
+}
+
+.zoneDot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 0.4rem;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.labelInput {
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.82rem;
+  color: #1f3554;
+  font-weight: 600;
+  width: 10rem;
+  background: transparent;
+
+  &:hover,
+  &:focus {
+    border-color: #c4d6e8;
+    background: #fff;
+    outline: none;
+  }
+}
+
+.pctInput {
+  border: 1px solid #c4d6e8;
+  border-radius: 4px;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.82rem;
+  color: #1f3554;
+  width: 4.5rem;
+  text-align: right;
+
+  &:focus {
+    outline: none;
+    border-color: #4f87c6;
+  }
+}
+
+.derived {
+  color: #4a6680;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.footer {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid #d9e6f3;
+  background: #f7fbff;
+}
+
+.btnCancel,
+.btnSave,
+.btnReset {
+  padding: 0.5rem 0.85rem;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: none;
+  text-transform: uppercase;
+}
+
+.btnReset {
+  background: #f5f8fc;
+  color: #4a6680;
+  border: 1px solid #c4d6e8;
+  margin-right: auto;
+
+  &:hover {
+    background: #e8eef8;
+  }
+}
+
+.btnCancel {
+  background: #eff5fb;
+  color: #4f6680;
+  border: 1px solid #c8d8ea;
+
+  &:hover {
+    background: #e2edf8;
+  }
+}
+
+.btnSave {
+  background: linear-gradient(90deg, #1f6fd6 0%, #1d87cc 100%);
+  color: #fff;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(31, 111, 214, 0.25);
+  }
+}
+
+@media (max-width: 700px) {
+  .zoneTable {
+    font-size: 0.74rem;
+  }
+
+  .labelInput {
+    width: 7rem;
+  }
+
+  .pctInput {
+    width: 3.5rem;
+  }
+}

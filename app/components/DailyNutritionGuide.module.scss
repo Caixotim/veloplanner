@@ -1,0 +1,683 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem 0;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.title {
+  margin: 0 0 0.2rem;
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #1a3a56;
+}
+
+.dateLabel {
+  margin: 0;
+  color: #5a6f85;
+  font-size: 0.95rem;
+}
+
+/* Session context row */
+.sessionRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.sessionCard {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d4e3f5;
+  border-radius: 10px;
+  background: #f4f9ff;
+
+  strong {
+    display: block;
+    color: #1a3a56;
+    font-weight: 700;
+    font-size: 0.95rem;
+  }
+
+  p {
+    margin: 0.15rem 0 0;
+    color: #4e6880;
+    font-size: 0.84rem;
+    line-height: 1.4;
+  }
+}
+
+.sessionIcon {
+  font-size: 1.5rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.tomorrowBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid #c2d5ec;
+  border-radius: 999px;
+  background: #eaf4ff;
+  color: #1a4a78;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.tomorrowDuration {
+  color: #5a7fa0;
+  font-weight: 400;
+}
+
+/* Nutrition windows grid */
+.windowsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.windowCard {
+  border: 1px solid #d8e8f6;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 1.1rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  box-shadow: 0 2px 8px rgba(12, 36, 72, 0.05);
+  transition: box-shadow 0.2s;
+
+  &:hover {
+    box-shadow: 0 4px 14px rgba(12, 36, 72, 0.1);
+  }
+}
+
+.windowHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+.windowIcon {
+  font-size: 1.35rem;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.windowMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.windowLabel {
+  margin: 0;
+  font-size: 0.97rem;
+  font-weight: 700;
+  color: #1a3a56;
+}
+
+.windowTiming {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #3d8c5a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.windowAdvice {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: #2c4660;
+}
+
+/* Expandable why section */
+.whyDetails {
+  border: 1px solid #ddeaf8;
+  border-radius: 8px;
+  overflow: hidden;
+
+  &[open] .whySummaryIcon {
+    transform: rotate(90deg);
+  }
+}
+
+.whySummary {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1f5f9a;
+  background: #f0f7ff;
+  list-style: none;
+  user-select: none;
+
+  &::-webkit-details-marker {
+    display: none;
+  }
+
+  &:hover {
+    background: #e4f0fb;
+  }
+}
+
+.whySummaryIcon {
+  font-size: 0.7rem;
+  transition: transform 0.15s ease;
+  display: inline-block;
+}
+
+.whyBody {
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  background: #fafcff;
+}
+
+.whySection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.whySectionLabel {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #2a5d8a;
+}
+
+.whySection p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: #304a60;
+}
+
+/* Key foods chips */
+.keyFoods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.foodChip {
+  padding: 0.2rem 0.55rem;
+  border: 1px solid #bdd4ee;
+  border-radius: 999px;
+  background: #eef5ff;
+  color: #2a537c;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+/* Suggested meals */
+.suggestedMeals {
+  border-top: 1px solid #dde8f5;
+  padding-top: 1.25rem;
+}
+
+.suggestedMealsTitle {
+  margin: 0 0 0.85rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1a3a56;
+}
+
+.mealsRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.85rem;
+}
+
+.mealTile {
+  border: 1px solid #d4e5f7;
+  border-radius: 10px;
+  background: #f7fbff;
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  cursor: pointer;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+
+  &:hover {
+    border-color: #a8c7e6;
+    box-shadow: 0 4px 12px rgba(19, 58, 90, 0.08);
+  }
+
+  &:focus-visible {
+    outline: 2px solid #2a6fbc;
+    outline-offset: 2px;
+  }
+}
+
+.mealTileTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.mealTileMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.sourceBadgeUsda,
+.sourceBadgeHeuristic {
+  border-radius: 999px;
+  padding: 0.22rem 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.sourceBadgeUsda {
+  background: #e7f9ec;
+  color: #176d39;
+}
+
+.sourceBadgeHeuristic {
+  background: #eef1f7;
+  color: #607087;
+}
+
+.mealTileName {
+  color: #163b5c;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.mealTileTime {
+  color: #5a7a99;
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.mealTileDesc {
+  margin: 0;
+  font-size: 0.83rem;
+  color: #3a526a;
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.mealTileTip {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #3a7a56;
+  line-height: 1.4;
+  font-style: italic;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.mealTileMacros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+
+  span {
+    padding: 0.15rem 0.45rem;
+    border: 1px solid #c2d8ee;
+    border-radius: 999px;
+    background: #eaf3ff;
+    color: #2a4f78;
+    font-size: 0.73rem;
+    font-weight: 700;
+  }
+}
+
+.mealTileActions {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.mealActionBtn {
+  border: 1px solid #bfd6ec;
+  border-radius: 7px;
+  background: #edf5ff;
+  color: #225885;
+  padding: 0.32rem 0.58rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover {
+    background: #e1effd;
+    border-color: #9fc3e8;
+  }
+}
+
+.mealModalBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 34, 58, 0.58);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.7rem;
+  z-index: 1200;
+}
+
+.mealModal {
+  width: min(980px, calc(100vw - 1.4rem));
+  max-height: calc(100vh - 1.4rem);
+  overflow: auto;
+  border-radius: 12px;
+  border: 1px solid #cbdaea;
+  background: #ffffff;
+  padding: 1.05rem;
+  box-shadow: 0 20px 40px rgba(11, 25, 43, 0.24);
+}
+
+.mealModalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+
+  h4 {
+    margin: 0;
+    color: #193b58;
+    font-size: 1.12rem;
+    line-height: 1.35;
+  }
+
+  p {
+    margin: 0.25rem 0 0;
+    color: #58748f;
+    font-size: 0.84rem;
+  }
+}
+
+.modalCloseBtn {
+  border: 1px solid #c3d8ec;
+  border-radius: 8px;
+  background: #f3f8ff;
+  color: #2a5d8a;
+  padding: 0.35rem 0.65rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mealModalBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  border: 1px solid #dce8f4;
+  border-radius: 10px;
+  padding: 0.8rem 0.85rem;
+  background: #fbfdff;
+
+  h5 {
+    margin: 0;
+    color: #1f4a6d;
+    font-size: 0.84rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  p {
+    margin: 0;
+    color: #36536d;
+    line-height: 1.55;
+    font-size: 0.88rem;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 1.2rem;
+    color: #36536d;
+    font-size: 0.86rem;
+    line-height: 1.5;
+  }
+}
+
+.mealModalLayout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: start;
+}
+
+.mealModalAside {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  position: sticky;
+  top: 0;
+}
+
+.mealQuickCard {
+  border: 1px solid #d7e4f1;
+  border-radius: 10px;
+  background: #f4f9ff;
+  padding: 0.7rem;
+
+  h5 {
+    margin: 0 0 0.45rem;
+    color: #295170;
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  p {
+    margin: 0;
+    color: #33536f;
+    font-size: 0.84rem;
+    line-height: 1.5;
+  }
+}
+
+.mealModalMain {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.ingredientsList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.45rem 0.75rem;
+  padding-left: 1.1rem;
+}
+
+.methodSteps {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  li {
+    color: #2f4a60;
+    background: #ffffff;
+    border: 1px solid #dbe6f1;
+    border-radius: 8px;
+    list-style-position: outside;
+  }
+}
+
+.methodStepBtn {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: 0.6rem;
+  padding: 0.55rem 0.65rem;
+  cursor: pointer;
+}
+
+.methodStepIndex {
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 999px;
+  border: 1px solid #a9c5e2;
+  background: #eef6ff;
+  color: #214f79;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.methodStepText {
+  color: #2f4a60;
+  line-height: 1.55;
+  font-size: 0.9rem;
+}
+
+.methodStepState {
+  color: #396a97;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  margin-top: 0.18rem;
+}
+
+.methodStepDone {
+  border-color: #b7dfc4 !important;
+  background: #f1fbf4 !important;
+
+  .methodStepIndex {
+    border-color: #6eb486;
+    background: #dcf3e4;
+    color: #1e6a39;
+  }
+
+  .methodStepText {
+    color: #355349;
+    text-decoration: line-through;
+    text-decoration-thickness: 1.5px;
+    text-decoration-color: rgba(53, 83, 73, 0.5);
+  }
+
+  .methodStepState {
+    color: #1f7b44;
+  }
+}
+
+.mealModalFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid #d7e5f2;
+}
+
+.mealActionBtnPrimary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  border: 1px solid #2f73bd;
+  border-radius: 7px;
+  background: #2f73bd;
+  color: #ffffff;
+  padding: 0.36rem 0.66rem;
+  font-size: 0.76rem;
+  font-weight: 800;
+  cursor: pointer;
+
+  &:hover {
+    background: #245f9e;
+    border-color: #245f9e;
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem 0;
+  }
+
+  .windowsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .mealsRow {
+    grid-template-columns: 1fr;
+  }
+
+  .sessionRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tomorrowBadge {
+    justify-content: center;
+  }
+
+  .mealModal {
+    width: calc(100vw - 0.8rem);
+    max-height: calc(100vh - 0.8rem);
+    padding: 0.85rem;
+  }
+
+  .mealModalLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .mealModalAside {
+    position: static;
+  }
+
+  .ingredientsList {
+    grid-template-columns: 1fr;
+  }
+
+  .mealModalHeader {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .mealModalFooter {
+    justify-content: stretch;
+
+    button {
+      flex: 1;
+      justify-content: center;
+    }
+  }
+}

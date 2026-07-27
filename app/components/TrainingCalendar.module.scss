@@ -1,0 +1,1293 @@
+.calendarContainer {
+  margin: 1.25rem 0 2rem;
+}
+
+.calendarHint {
+  margin: 0 0 0.75rem;
+  color: #5b6f85;
+  font-size: 0.82rem;
+}
+
+.calendarScroll {
+  overflow-x: auto;
+  overflow-y: visible;
+  border: 1px solid #c9dced;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(19, 64, 104, 0.08);
+  -webkit-overflow-scrolling: touch;
+}
+
+  .calendarHint,
+  .calendarScroll,
+  .calendar {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+  }
+
+  .calendarHint {
+    color: var(--theme-text-secondary);
+  }
+
+  .calendarScroll {
+    border: 1px solid var(--theme-border-subtle);
+    background: var(--theme-surface);
+    box-shadow: 0 8px 24px var(--theme-card-shadow);
+  }
+
+.calendar {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.85rem;
+
+  thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+
+    th {
+      padding: 0.5rem 0.4rem;
+      text-align: center;
+      color: #254a70;
+      background: #eef5fc;
+      font-weight: 700;
+      border-bottom: 1px solid #c9dced;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 0.68rem;
+    }
+      th {
+        color: var(--theme-text-secondary);
+        background: var(--theme-surface-header);
+        border-bottom: 1px solid var(--theme-border-subtle);
+      }
+  }
+
+  tbody tr {
+    border-bottom: 1px solid #e4eef7;
+
+    &:nth-child(even) {
+      background: #fbfdff;
+    }
+
+    &:hover {
+      background: #f4f9ff;
+    }
+  }
+    tbody tr {
+      border-bottom: 1px solid var(--theme-border);
+
+      &:nth-child(even) {
+        background: var(--theme-surface-tertiary);
+      }
+
+      &:hover {
+        background: var(--theme-surface-hover);
+      }
+    }
+}
+
+.weekCol {
+  min-width: 80px;
+  position: sticky;
+  left: 0;
+  background: #f3f8fe;
+  z-index: 5;
+}
+
+  .weekCol {
+    background: var(--theme-surface-week);
+  }
+
+.dayCol {
+  min-width: 124px;
+  max-width: 144px;
+}
+
+.weekLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  padding: 0.32rem;
+
+  .weekNum {
+    font-weight: 800;
+    color: #1f5a9d;
+    font-size: 0.8rem;
+  }
+
+  .weekRange {
+    color: #4f6680;
+    font-size: 0.66rem;
+    line-height: 1.35;
+  }
+    .weekNum {
+      color: var(--theme-week-label);
+    }
+
+    .weekRange {
+      color: var(--theme-week-range);
+    }
+
+  .compliancePill {
+    font-size: 0.58rem;
+    font-weight: 800;
+    border-radius: 999px;
+    padding: 0.12rem 0.42rem;
+    border: 1px solid transparent;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  .compliancePerfect {
+    background: #e6f9ee;
+    border-color: #95d9ad;
+    color: #1b6b3a;
+  }
+
+  .compliancePartial {
+    background: #fff8e6;
+    border-color: #f0ce80;
+    color: #8a6010;
+  }
+
+  .complianceLow {
+    background: #f5f5f5;
+    border-color: #d8d8d8;
+    color: #666;
+  }
+
+  .compliancePill {
+    font-size: 0.58rem;
+    font-weight: 800;
+    border-radius: 999px;
+    padding: 0.12rem 0.42rem;
+    border: 1px solid transparent;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  .compliancePerfect {
+    background: #e6f9ee;
+    border-color: #95d9ad;
+    color: #1b6b3a;
+  }
+
+  .compliancePartial {
+    background: #fff8e6;
+    border-color: #f0ce80;
+    color: #8a6010;
+  }
+
+  .complianceLow {
+    background: #f5f5f5;
+    border-color: #d8d8d8;
+    color: #666;
+  }
+
+  .phaseBadge {
+    font-size: 0.65rem;
+    padding: 0.2rem 0.45rem;
+    border-radius: 999px;
+    text-transform: uppercase;
+    font-weight: 700;
+    border: 1px solid transparent;
+
+    &.base {
+      background: #e8f3ff;
+      border-color: #bcd9f7;
+      color: #1f5a9d;
+    }
+
+    &.build {
+      background: #fff2dc;
+      border-color: #f1ce94;
+      color: #8e5b0a;
+    }
+
+    &.peak {
+      background: #fdeceb;
+      border-color: #f1c0bc;
+      color: #a73d36;
+    }
+
+    &.recovery {
+      background: #edf9f1;
+      border-color: #b8e0c0;
+      color: #2f6b3c;
+    }
+  }
+}
+
+.sessionCell {
+  padding: 0.28rem;
+  min-height: 158px;
+  vertical-align: top;
+  border: 1px solid #e4eef7;
+  cursor: grab;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  &.dragOver {
+    background: #eaf4ff;
+    border: 1px solid #4f87c6;
+  }
+
+  &.changed {
+    border: 1px solid #dd8a2b;
+    background: #fff8ee;
+  }
+
+  .sessionCell {
+    border: 1px solid var(--theme-border);
+
+    &.dragOver {
+      background: var(--theme-surface-hover);
+      border: 1px solid var(--theme-accent);
+    }
+
+    &.changed {
+      border: 1px solid var(--theme-accent-secondary);
+      background: var(--theme-surface-secondary);
+    }
+  }
+
+  &.restCell {
+    cursor: default;
+  }
+
+  &.highlighted {
+    background: #eef8ff;
+
+    .sessionCard {
+      border-color: #6ea5de;
+      box-shadow: 0 0 0 2px rgba(84, 139, 204, 0.2);
+    }
+  }
+
+  &.highlightPulse {
+    .sessionCard {
+      animation: sessionPulse 1.2s ease-out;
+    }
+  }
+
+  &.dimmed {
+    opacity: 0.5;
+  }
+
+  &.todayCell {
+    background: #fff6df;
+    border-color: #e9bf57;
+
+    .sessionCard {
+      border-color: #d29b21;
+      box-shadow: 0 0 0 2px rgba(210, 155, 33, 0.22);
+    }
+  }
+}
+
+@keyframes sessionPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(84, 139, 204, 0.38);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(84, 139, 204, 0.12);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(84, 139, 204, 0);
+  }
+}
+
+.sessionCard {
+  position: relative;
+  background: #ffffff;
+  border: 1px solid #d2e2f0;
+  border-radius: 8px;
+  padding: 0.46rem;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    border-color: #9fbee0;
+    box-shadow: 0 6px 14px rgba(44, 90, 137, 0.12);
+  }
+
+  .sessionHeader {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    font-weight: 700;
+    color: #1f5a9d;
+
+    .icon {
+      font-size: 0.95rem;
+    }
+
+    .type {
+      text-transform: capitalize;
+      font-size: 0.74rem;
+    }
+
+    .modalityBadge {
+      margin-left: auto;
+      font-size: 0.56rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border-radius: 999px;
+      padding: 0.12rem 0.36rem;
+      border: 1px solid transparent;
+      line-height: 1.2;
+    }
+
+    .levelBadge {
+      font-size: 0.56rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      border-radius: 999px;
+      padding: 0.12rem 0.36rem;
+      border: 1px solid #b8dcbf;
+      background: #edf9f1;
+      color: #2f6b3c;
+      line-height: 1.2;
+    }
+
+    .subtypeBadge {
+      font-size: 0.54rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      border-radius: 999px;
+      padding: 0.1rem 0.34rem;
+      border: 1px solid #d0dfe8;
+      background: #f6f9fc;
+      color: #3f5a73;
+      line-height: 1.2;
+      max-width: 7.2rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .zoneVersionBadge {
+      font-size: 0.52rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      border-radius: 999px;
+      padding: 0.1rem 0.3rem;
+      border: 1px solid #bdd0e8;
+      background: #e8f2ff;
+      color: #1a4c82;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    .fatigueBadge {
+      appearance: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+      font-size: 0.52rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      border-radius: 999px;
+      padding: 0.1rem 0.32rem;
+      border: 1px solid transparent;
+      line-height: 1.2;
+      white-space: nowrap;
+      cursor: pointer;
+
+      &:focus-visible {
+        outline: 2px solid #1f5f9a;
+        outline-offset: 2px;
+      }
+    }
+
+    .fatigueBadgeWatch {
+      background: #fff4e3;
+      border-color: #eecf9f;
+      color: #8b5215;
+    }
+
+    .fatigueBadgeRisk {
+      background: #ffebeb;
+      border-color: #e8b5b5;
+      color: #8d2828;
+    }
+
+    .nutritionBadge {
+      display: inline-flex;
+      align-items: center;
+      font-size: 0.52rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      border-radius: 999px;
+      padding: 0.1rem 0.32rem;
+      border: 1px solid #aad4b8;
+      background: #e8f8ee;
+      color: #2c6b41;
+      line-height: 1.2;
+      white-space: nowrap;
+      cursor: help;
+    }
+
+    .fatigueDetailsPanel {
+      border: 1px solid #d7e3f1;
+      border-radius: 7px;
+      background: #f7fbff;
+      padding: 0.28rem 0.36rem;
+      display: grid;
+      gap: 0.16rem;
+      font-size: 0.6rem;
+      color: #34506a;
+
+      strong {
+        color: #1f4266;
+      }
+    }
+
+    .modalityBike {
+      background: #e8f3ff;
+      border-color: #c1dcf8;
+      color: #1f5a9d;
+    }
+
+    .modalityRower {
+      background: #fff2dc;
+      border-color: #f1ce94;
+      color: #8e5b0a;
+    }
+
+    .modalityStrength {
+      background: #fdeceb;
+      border-color: #f1c0bc;
+      color: #a73d36;
+    }
+  }
+
+  .dateBadge {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.45rem;
+    padding-bottom: 0.28rem;
+    border-bottom: 1px solid #e3edf6;
+
+    .dateDay {
+      font-size: 0.62rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #60768f;
+    }
+
+    .dateValue {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #243f5e;
+    }
+  }
+
+  .todayDateBadge {
+    border-bottom-color: #f1d28d;
+  }
+
+  .todayPill {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+    font-size: 0.58rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #7a5100;
+    background: #ffefc7;
+    border: 1px solid #e4bb59;
+    line-height: 1.2;
+  }
+
+  .readinessPill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1rem 0.38rem;
+    border-radius: 999px;
+    font-size: 0.56rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  .readinessGood {
+    color: #1f6a39;
+    background: #e7f8ec;
+    border: 1px solid #9fd5af;
+  }
+
+  .readinessOk {
+    color: #8a6010;
+    background: #fff7e5;
+    border: 1px solid #e7cf8b;
+  }
+
+  .readinessLow {
+    color: #8c2b2b;
+    background: #fff0ee;
+    border: 1px solid #efc0bc;
+  }
+
+  .readinessNote {
+    margin: 0.25rem 0 0;
+    padding: 0.2rem 0.38rem;
+    border-radius: 7px;
+    border: 1px solid #d6e5f3;
+    background: #f5faff;
+    color: #2a4f72;
+    font-size: 0.6rem;
+    line-height: 1.35;
+    font-style: italic;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sessionBody {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex: 1;
+
+    > div {
+      font-size: 0.68rem;
+      color: #35526f;
+    }
+  }
+
+  .eventBadges {
+    display: grid;
+    gap: 0.18rem;
+  }
+
+  .eventBadge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    padding: 0.08rem 0.3rem;
+    font-size: 0.54rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    line-height: 1.2;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .eventBadgeA {
+    background: #ffebeb;
+    border-color: #ebbcbc;
+    color: #8c2b2b;
+  }
+
+  .eventBadgeB {
+    background: #fff3e1;
+    border-color: #efcd9b;
+    color: #855015;
+  }
+
+  .eventBadgeC {
+    background: #edf4ff;
+    border-color: #c8daf0;
+    color: #2a557f;
+  }
+
+  .duration,
+  .intensity,
+  .power {
+    cursor: pointer;
+    padding: 0.14rem 0.3rem;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+
+    &:hover {
+      background: #edf5fd;
+    }
+  }
+
+  .intensityBadge {
+    display: inline-block;
+    padding: 0.16rem 0.32rem;
+    border-radius: 4px;
+    font-size: 0.58rem;
+    font-weight: 700;
+    text-transform: capitalize;
+    color: #fff;
+  }
+
+  .focus {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.18rem;
+
+    .focusTag {
+      display: inline-block;
+      background: #eaf3fd;
+      color: #2e5c8f;
+      padding: 0.1rem 0.25rem;
+      border-radius: 4px;
+      border: 1px solid #c7dbef;
+      font-size: 0.56rem;
+      white-space: nowrap;
+    }
+  }
+
+  .logBtn {
+    position: absolute;
+    top: 0.22rem;
+    right: 4rem;
+    background: #f0fff4;
+    border: 1px solid #a8d8b8;
+    color: #2c6b41;
+    border-radius: 4px;
+    padding: 0.18rem 0.38rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.2s ease;
+    line-height: 1;
+
+    &:hover {
+      background: #d6f5e3;
+    }
+  }
+
+  &:hover .logBtn {
+    opacity: 1;
+  }
+
+  .tssRow {
+    display: flex;
+    gap: 0.3rem;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 0.1rem;
+  }
+
+  .tssBadge,
+  .ifBadge {
+    font-size: 0.58rem;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 0.1rem 0.32rem;
+    letter-spacing: 0.04em;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  .tssBadge {
+    background: #e8f3ff;
+    border: 1px solid #bdd5f0;
+    color: #1a4c82;
+  }
+
+  .ifBadge {
+    background: #fdf4e8;
+    border: 1px solid #f0d4a0;
+    color: #8a5010;
+  }
+
+  .completionBadge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 0.12rem 0.36rem;
+    margin-top: 0.12rem;
+    line-height: 1.3;
+    text-transform: capitalize;
+    border: 1px solid transparent;
+  }
+
+  .completionDone {
+    background: #e6f9ee;
+    border-color: #95d9ad;
+    color: #1b6b3a;
+  }
+
+  .completionPartial {
+    background: #fff8e6;
+    border-color: #f0ce80;
+    color: #8a6010;
+  }
+
+  .completionSkipped {
+    background: #fff0ee;
+    border-color: #f0b8b8;
+    color: #8c2b2b;
+  }
+
+  .tssRow {
+    display: flex;
+    gap: 0.3rem;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 0.1rem;
+  }
+
+  .tssBadge,
+  .ifBadge {
+    font-size: 0.58rem;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 0.1rem 0.32rem;
+    letter-spacing: 0.04em;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  .tssBadge {
+    background: #e8f3ff;
+    border: 1px solid #bdd5f0;
+    color: #1a4c82;
+  }
+
+  .ifBadge {
+    background: #fdf4e8;
+    border: 1px solid #f0d4a0;
+    color: #8a5010;
+  }
+
+  .completionBadge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 0.12rem 0.36rem;
+    margin-top: 0.12rem;
+    line-height: 1.3;
+    text-transform: capitalize;
+    border: 1px solid transparent;
+  }
+
+  .completionDone {
+    background: #e6f9ee;
+    border-color: #95d9ad;
+    color: #1b6b3a;
+  }
+
+  .completionPartial {
+    background: #fff8e6;
+    border-color: #f0ce80;
+    color: #8a6010;
+  }
+
+  .completionSkipped {
+    background: #fff0ee;
+    border-color: #f0b8b8;
+    color: #8c2b2b;
+  }
+
+  .tssActual { font-weight: 800; }
+  .tssActualGood { color: #1b6b3a; }
+  .tssActualLow { color: #8a5010; }
+
+  .actualRideRow {
+    display: flex;
+    align-items: center;
+    gap: 0.28rem;
+    flex-wrap: wrap;
+    margin-top: 0.16rem;
+    padding: 0.18rem 0.32rem;
+    background: #f0fff6;
+    border: 1px solid #9dd9b5;
+    border-radius: 4px;
+  }
+
+  .actualRideLabel {
+    font-size: 0.55rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #1b6b3a;
+  }
+
+  .actualRideChip {
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: #23593d;
+  }
+
+  .actualRideOffset {
+    font-size: 0.55rem;
+    color: #8a6010;
+    background: #fff3d0;
+    border: 1px solid #e8c872;
+    border-radius: 999px;
+    padding: 0.06rem 0.28rem;
+    font-weight: 700;
+  }
+
+  .editBtn {
+    position: absolute;
+    top: 0.22rem;
+    right: 0.22rem;
+    background: #f4eaff;
+    border: 1px solid #d5beef;
+    color: #623f8f;
+    border-radius: 4px;
+    padding: 0.18rem 0.34rem;
+    font-size: 0.7rem;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: #eadafb;
+    }
+  }
+
+  .viewBtn {
+    position: absolute;
+    top: 0.22rem;
+    right: 2rem;
+    background: #eaf6ff;
+    border: 1px solid #bfdcf4;
+    color: #2f5f87;
+    border-radius: 4px;
+    padding: 0.18rem 0.34rem;
+    font-size: 0.7rem;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: #dbedfb;
+    }
+  }
+
+  &:hover .editBtn,
+  &:hover .viewBtn {
+    opacity: 1;
+  }
+}
+
+.restCard {
+  background: #f8fbff;
+  border-color: #dbe7f2;
+}
+
+.inlineInput,
+.inlineSelect {
+  width: 100%;
+  padding: 0.2rem 0.4rem;
+  border: 1px solid #90b2d6;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #1f3955;
+  font-size: 0.68rem;
+
+  &:focus {
+    outline: none;
+    border-color: #4f87c6;
+    box-shadow: 0 0 0 2px rgba(79, 135, 198, 0.2);
+  }
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid #d9e6f3;
+  font-size: 0.72rem;
+  color: #546c86;
+
+  .legendItem {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+
+    .legendIcon {
+      font-size: 0.95rem;
+    }
+  }
+}
+
+/* Theme consistency overrides for calendar cards and pills */
+.sessionCard {
+  background: var(--theme-surface);
+  border-color: var(--theme-border-light);
+
+  &:hover {
+    border-color: var(--theme-accent);
+    box-shadow: 0 6px 14px var(--theme-card-shadow);
+  }
+
+  .sessionHeader {
+    color: var(--theme-text-primary);
+
+    .levelBadge {
+      border-color: var(--theme-panel-success-border);
+      background: var(--theme-panel-success-bg);
+      color: var(--theme-panel-success-text);
+    }
+
+    .subtypeBadge {
+      border-color: var(--theme-border);
+      background: var(--theme-surface-secondary);
+      color: var(--theme-text-secondary);
+    }
+
+    .zoneVersionBadge {
+      border-color: var(--theme-panel-info-border);
+      background: var(--theme-panel-info-bg);
+      color: var(--theme-panel-info-text);
+    }
+  }
+
+  .dateBadge {
+    border-bottom-color: var(--theme-border);
+
+    .dateDay {
+      color: var(--theme-text-tertiary);
+    }
+
+    .dateValue {
+      color: var(--theme-text-primary);
+    }
+  }
+
+  .sessionBody > div {
+    color: var(--theme-text-secondary);
+  }
+
+  .focus .focusTag {
+    background: var(--theme-surface-secondary);
+    color: var(--theme-text-secondary);
+    border-color: var(--theme-border-light);
+  }
+
+  .duration,
+  .intensity,
+  .power {
+    &:hover {
+      background: var(--theme-surface-hover);
+    }
+  }
+
+  .tssBadge {
+    background: var(--theme-panel-info-bg);
+    border-color: var(--theme-panel-info-border);
+    color: var(--theme-panel-info-text);
+  }
+
+  .ifBadge {
+    background: var(--theme-panel-warm-bg);
+    border-color: var(--theme-panel-warm-border);
+    color: var(--theme-panel-warm-text);
+  }
+
+  .actualRideRow {
+    background: var(--theme-panel-success-bg);
+    border-color: var(--theme-panel-success-border);
+  }
+
+  .actualRideLabel,
+  .actualRideChip {
+    color: var(--theme-panel-success-text);
+  }
+
+  .actualRideOffset {
+    color: var(--theme-panel-warm-text);
+    background: var(--theme-panel-warm-bg);
+    border-color: var(--theme-panel-warm-border);
+  }
+
+  .editBtn {
+    background: var(--theme-panel-accent-bg);
+    border-color: var(--theme-panel-accent-border);
+    color: var(--theme-panel-accent-text);
+  }
+
+  .viewBtn {
+    background: var(--theme-panel-info-bg);
+    border-color: var(--theme-panel-info-border);
+    color: var(--theme-panel-info-text);
+  }
+
+  .logBtn {
+    background: var(--theme-panel-success-bg);
+    border-color: var(--theme-panel-success-border);
+    color: var(--theme-panel-success-text);
+  }
+}
+
+.restCard {
+  background: var(--theme-surface-secondary);
+  border-color: var(--theme-border);
+}
+
+.inlineInput,
+.inlineSelect {
+  border-color: var(--theme-border-light);
+  background: var(--theme-surface);
+  color: var(--theme-text-primary);
+
+  &:focus {
+    border-color: var(--theme-focus);
+    box-shadow: 0 0 0 2px var(--theme-focus-ring);
+  }
+}
+
+.legend {
+  border-top-color: var(--theme-border);
+  color: var(--theme-text-secondary);
+}
+
+@media (max-width: 768px) {
+  .dayCol {
+    min-width: 116px;
+  }
+
+  .sessionCard {
+    padding: 0.42rem;
+
+    .editBtn {
+      opacity: 1;
+    }
+
+    .viewBtn {
+      opacity: 1;
+    }
+
+    .logBtn {
+      opacity: 1;
+    }
+
+    .sessionHeader {
+      gap: 0.35rem;
+
+      .type {
+        margin-right: auto;
+      }
+
+      .modalityBadge {
+        margin-left: 0;
+      }
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .calendarContainer {
+    margin: 0.9rem 0 1.4rem;
+  }
+
+  .calendarHint {
+    font-size: 0.76rem;
+    line-height: 1.35;
+  }
+
+  .calendarScroll {
+    border-radius: 10px;
+  }
+
+  .weekCol {
+    min-width: 70px;
+  }
+
+  .dayCol {
+    min-width: 102px;
+    max-width: 114px;
+  }
+
+  .weekLabel {
+    padding: 0.24rem;
+
+    .weekNum {
+      font-size: 0.72rem;
+    }
+
+    .weekRange {
+      font-size: 0.6rem;
+    }
+
+    .phaseBadge {
+      font-size: 0.58rem;
+      padding: 0.16rem 0.34rem;
+    }
+  }
+
+  .sessionCell {
+    min-height: 138px;
+    padding: 0.2rem;
+  }
+
+  .sessionCard {
+    padding: 0.36rem;
+    gap: 0.22rem;
+
+    .dateBadge {
+      padding-bottom: 0.2rem;
+
+      .dateDay {
+        font-size: 0.56rem;
+      }
+
+      .dateValue {
+        font-size: 0.66rem;
+      }
+    }
+
+    .sessionHeader {
+      gap: 0.25rem;
+
+      .icon {
+        font-size: 0.84rem;
+      }
+
+      .type {
+        font-size: 0.66rem;
+      }
+
+      .modalityBadge,
+      .levelBadge,
+      .subtypeBadge,
+      .fatigueBadge {
+        font-size: 0.5rem;
+      }
+
+      .eventBadge {
+        font-size: 0.49rem;
+        padding: 0.08rem 0.24rem;
+      }
+
+      .zoneVersionBadge {
+        font-size: 0.48rem;
+      }
+
+      .fatigueDetailsPanel {
+        font-size: 0.56rem;
+        padding: 0.24rem 0.3rem;
+      }
+    }
+
+    .sessionBody {
+      > div {
+        font-size: 0.63rem;
+      }
+    }
+
+    .duration,
+    .intensity,
+    .power {
+      padding: 0.14rem 0.24rem;
+    }
+
+    .intensityBadge {
+      font-size: 0.54rem;
+    }
+
+    .focus .focusTag {
+      font-size: 0.52rem;
+    }
+
+    .editBtn {
+      opacity: 1;
+      width: 1.9rem;
+      height: 1.9rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      font-size: 0.78rem;
+    }
+
+    .viewBtn {
+      opacity: 1;
+      width: 1.9rem;
+      height: 1.9rem;
+      right: 2.22rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      font-size: 0.78rem;
+    }
+  }
+
+  .inlineInput,
+  .inlineSelect {
+    min-height: 1.9rem;
+    font-size: 0.64rem;
+  }
+
+  .legend {
+    gap: 0.52rem;
+    font-size: 0.66rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .dayCol {
+    min-width: 94px;
+    max-width: 104px;
+  }
+
+  .weekCol {
+    min-width: 64px;
+  }
+
+  .sessionCell {
+    min-height: 126px;
+  }
+
+  .sessionCard {
+    padding: 0.3rem;
+  }
+}
+
+@media print {
+  .calendarContainer {
+    page-break-inside: avoid;
+  }
+
+  .calendar {
+    thead th {
+      background: #f0f4f8;
+      border-color: #b5c3d1;
+      color: #1f3955;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid #c3cfdb;
+
+      &:hover {
+        background: transparent;
+      }
+    }
+  }
+
+  .sessionCard {
+    box-shadow: none;
+
+    .editBtn {
+      display: none;
+    }
+  }
+
+  .legend {
+    display: none;
+  }
+}

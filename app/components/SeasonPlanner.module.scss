@@ -1,0 +1,244 @@
+.wrapper {
+  display: grid;
+  gap: 1rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+
+  h2 {
+    margin: 0;
+    color: #173f66;
+  }
+
+  p {
+    margin: 0.35rem 0 0;
+    color: #5b728b;
+    line-height: 1.45;
+  }
+}
+
+.yearSection {
+  border: 1px solid #d7e3ef;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+  padding: 1rem;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.yearHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+
+  h3 {
+    margin: 0;
+    color: #23486c;
+    font-size: 1.05rem;
+  }
+
+  span {
+    color: #60788f;
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+}
+
+.monthGrid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.monthCell {
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #5d748c;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid #e1e9f2;
+}
+
+.eventLane {
+  position: relative;
+  height: 1.6rem;
+  border-radius: 10px;
+  background: #f6f9fd;
+  border: 1px dashed #d4e0ec;
+}
+
+.eventMarker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.66rem;
+  font-weight: 900;
+  border: 1px solid transparent;
+}
+
+.eventA {
+  background: #fff0ee;
+  border-color: #efc0bc;
+  color: #8c2b2b;
+}
+
+.eventB {
+  background: #fff7e5;
+  border-color: #e7cf8b;
+  color: #8a6010;
+}
+
+.eventC {
+  background: #eef5fd;
+  border-color: #c7d9eb;
+  color: #2f567e;
+}
+
+.planRows {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.emptyYear {
+  color: #6a8096;
+  font-size: 0.88rem;
+  padding: 0.75rem 0;
+}
+
+.planRow {
+  border: 1px solid #d6e2ee;
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 0.75rem 0.85rem;
+  display: grid;
+  gap: 0.6rem;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.planRow:hover {
+  border-color: #9fc0e2;
+  box-shadow: 0 8px 18px rgba(21, 56, 92, 0.08);
+  transform: translateY(-1px);
+}
+
+.planRowActive {
+  border-color: #1f6fd6;
+  box-shadow: 0 0 0 2px rgba(31, 111, 214, 0.12);
+}
+
+.planMeta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+
+  strong {
+    color: #203c59;
+    font-size: 0.92rem;
+  }
+
+  span {
+    color: #5d7289;
+    font-size: 0.78rem;
+    text-transform: capitalize;
+  }
+}
+
+.timelineTrack {
+  position: relative;
+  height: 1rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f4f7fb 0%, #eef4fa 100%);
+  border: 1px solid #dde6ef;
+  overflow: hidden;
+}
+
+.timelineBase {
+  position: absolute;
+  top: 0.15rem;
+  bottom: 0.15rem;
+  border-radius: 999px;
+  background: #d9e7f6;
+}
+
+.phaseBar {
+  position: absolute;
+  top: 0.15rem;
+  bottom: 0.15rem;
+  border-radius: 999px;
+}
+
+.phaseBase {
+  background: #8dc0f0;
+}
+
+.phaseBuild {
+  background: #f1c46d;
+}
+
+.phasePeak {
+  background: #e99a8f;
+}
+
+.phaseRecovery {
+  background: #9ed0a7;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.legendPill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.18rem 0.48rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  border: 1px solid transparent;
+}
+
+@media (max-width: 900px) {
+  .monthGrid {
+    gap: 0.2rem;
+  }
+
+  .monthCell {
+    font-size: 0.62rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .planMeta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .legend {
+    gap: 0.35rem;
+  }
+
+  .legendPill {
+    font-size: 0.64rem;
+  }
+}

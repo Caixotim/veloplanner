@@ -1,0 +1,284 @@
+.container {
+  max-width: 1200px;
+  margin: 2rem auto;
+  padding: 2rem;
+  background: linear-gradient(135deg, #fff5f7 0%, #ffe8d6 100%);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+}
+
+.title {
+  font-size: 2rem;
+  margin: 0 0 0.5rem 0;
+  color: #2c3e50;
+  text-align: center;
+}
+
+.subtitle {
+  text-align: center;
+  color: #7f8c8d;
+  margin: 0 0 2rem 0;
+  font-size: 1.05rem;
+}
+
+.mealsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.mealCategory {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.categoryTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.3rem;
+  margin: 0 0 1.5rem 0;
+  color: #2c3e50;
+  border-bottom: 3px solid #f39c12;
+  padding-bottom: 0.75rem;
+}
+
+.icon {
+  font-size: 1.8rem;
+}
+
+.mealsList {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.mealCard {
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-radius: 10px;
+  border-left: 4px solid #3498db;
+  transition: all 0.3s ease;
+}
+
+.mealCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-left-color: #e74c3c;
+}
+
+.mealHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  margin-bottom: 0.75rem;
+}
+
+.mealHeaderMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4rem;
+}
+
+.mealName {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0;
+  color: #2c3e50;
+}
+
+.prepTime {
+  background: #fff3cd;
+  color: #856404;
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sourceBadgeUsda,
+.sourceBadgeHeuristic {
+  border-radius: 999px;
+  padding: 0.28rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.sourceBadgeUsda {
+  background: #e5f7ea;
+  color: #19743b;
+}
+
+.sourceBadgeHeuristic {
+  background: #edf0f5;
+  color: #5f6b7a;
+}
+
+.mealDescription {
+  font-size: 0.95rem;
+  color: #34495e;
+  margin: 0 0 1rem 0;
+  line-height: 1.5;
+}
+
+.ingredients {
+  margin-bottom: 1rem;
+}
+
+.ingredients strong {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #2c3e50;
+  font-size: 0.95rem;
+}
+
+.ingredients ul {
+  margin: 0;
+  padding-left: 1.5rem;
+  list-style: none;
+}
+
+.ingredients li {
+  color: #34495e;
+  font-size: 0.9rem;
+  margin: 0.3rem 0;
+  position: relative;
+  padding-left: 1rem;
+}
+
+.ingredients li:before {
+  content: '🌿';
+  position: absolute;
+  left: 0;
+}
+
+.moreIngredients {
+  color: #95a5a6;
+  font-style: italic;
+}
+
+.nutrition {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.nutrientBadge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.75rem;
+  background: white;
+  border-radius: 8px;
+  border: 2px solid #ecf0f1;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.nutrientBadge:hover {
+  border-color: #667eea;
+  background: #f0f4ff;
+}
+
+.nutrientValue {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #667eea;
+}
+
+.nutrientLabel {
+  font-size: 0.75rem;
+  color: #95a5a6;
+  text-transform: uppercase;
+  margin-top: 0.2rem;
+  font-weight: 600;
+}
+
+.portugueseBadge {
+  display: inline-block;
+  background: linear-gradient(135deg, #f92e64 0%, #ffd700 100%);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: center;
+  width: 100%;
+}
+
+.tips {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  border-left: 5px solid #2ecc71;
+}
+
+.tips h3 {
+  margin-top: 0;
+  color: #2c3e50;
+  font-size: 1.2rem;
+}
+
+.tips ul {
+  margin: 0;
+  padding-left: 1.5rem;
+  list-style: none;
+}
+
+.tips li {
+  margin: 0.75rem 0;
+  color: #34495e;
+  position: relative;
+  padding-left: 1.5rem;
+}
+
+.tips li:before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: #2ecc71;
+  font-weight: bold;
+}
+
+@media (max-width: 1024px) {
+  .mealsGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 1.5rem;
+  }
+
+  .title {
+    font-size: 1.5rem;
+  }
+
+  .nutrition {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .categoryTitle {
+    font-size: 1.1rem;
+  }
+}
+
+@media print {
+  .container {
+    background: white;
+    box-shadow: none;
+    page-break-inside: avoid;
+  }
+
+  .mealCard {
+    page-break-inside: avoid;
+  }
+}
