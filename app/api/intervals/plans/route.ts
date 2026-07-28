@@ -57,54 +57,79 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const syncedEventIds: number[] = []
+    const BATCH_SIZE = 10
+    const REQUEST_TIMEOUT_MS = 30000
+    const allSessions: Array<{ week: number; session: TrainingSession }> = []
 
+    // Flatten all sessions across weeks
     for (const week of plan.weeks) {
       for (const session of week.sessions) {
-        if (isRestDay(session)) {
-          continue
+        if (!isRestDay(session)) {
+          allSessions.push({ week: week.weekNumber, session })
         }
+      }
+    }
 
-        const startDate = toDate(session.date)
-        const endDate = new Date(startDate.getTime() + session.duration * 60 * 1000)
-        const workoutType = getIntervalsWorkoutType(session)
-        const structuredFile = shouldAttachCyclingFile(workoutType)
-          ? buildStructuredWorkoutFile(plan, week.weekNumber, session)
-          : null
-        const payload = {
-          category: 'WORKOUT',
-          type: workoutType,
-          name: `[AI] ${plan.name} • Week ${week.weekNumber} ${session.type.toUpperCase()}`,
-          description: buildWorkoutDescription(session, workoutType),
-          // Send bike-specific structured files only for cycling session types.
-          ...(structuredFile
-            ? {
-                file_contents: structuredFile.contents,
-                filename: structuredFile.filename,
-              }
-            : {}),
-          // Intervals calendar expects local datetime strings without timezone suffix.
-          start_date_local: toLocalDateTime(startDate),
-          end_date_local: toLocalDateTime(endDate),
-          // Include date-only fields so the event appears on the expected calendar day.
-          start_date: toLocalIsoDate(startDate),
-          end_date: toLocalIsoDate(endDate),
-          uid: buildExternalEventId(externalPlanId, session.id),
-          external_id: buildExternalEventId(externalPlanId, session.id),
-          moving_time: Math.max(0, session.duration * 60),
+    // Process sessions in batches to improve reliability on mobile connections
+    for (let i = 0; i < allSessions.length; i += BATCH_SIZE) {
+      const batch = allSessions.slice(i, i + BATCH_SIZE)
+
+      const promises = batch.map(async ({ week, session }) => {
+        try {
+          const startDate = toDate(session.date)
+          const endDate = new Date(startDate.getTime() + session.duration * 60 * 1000)
+          const workoutType = getIntervalsWorkoutType(session)
+          const structuredFile = shouldAttachCyclingFile(workoutType)
+            ? buildStructuredWorkoutFile(plan, week, session)
+            : null
+          const payload = {
+            category: 'WORKOUT',
+            type: workoutType,
+            name: `[AI] ${plan.name} • Week ${week} ${session.type.toUpperCase()}`,
+            description: buildWorkoutDescription(session, workoutType),
+            // Send bike-specific structured files only for cycling session types.
+            ...(structuredFile
+              ? {
+                  file_contents: structuredFile.contents,
+                  filename: structuredFile.filename,
+                }
+              : {}),
+            // Intervals calendar expects local datetime strings without timezone suffix.
+            start_date_local: toLocalDateTime(startDate),
+            end_date_local: toLocalDateTime(endDate),
+            // Include date-only fields so the event appears on the expected calendar day.
+            start_date: toLocalIsoDate(startDate),
+            end_date: toLocalIsoDate(endDate),
+            uid: buildExternalEventId(externalPlanId, session.id),
+            external_id: buildExternalEventId(externalPlanId, session.id),
+            moving_time: Math.max(0, session.duration * 60),
+          }
+
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
+          const response = await intervalsRequest(
+            `/api/v1/athlete/${config.athleteId}/events?upsertOnUid=true`,
+            {
+              method: 'POST',
+              body: JSON.stringify(payload),
+            },
+            config
+          )
+          clearTimeout(timeoutId)
+
+          const created = (await response.json()) as SyncedEvent
+          return created.id || null
+        } catch (error) {
+          console.warn(`Failed to sync session in batch: ${session.id}`, { error })
+          return null
         }
+      })
 
-        const response = await intervalsRequest(
-          `/api/v1/athlete/${config.athleteId}/events?upsertOnUid=true`,
-          {
-            method: 'POST',
-            body: JSON.stringify(payload),
-          },
-          config
-        )
-
-        const created = (await response.json()) as SyncedEvent
-        if (created.id) {
-          syncedEventIds.push(created.id)
+      const results = await Promise.allSettled(promises)
+      for (const result of results) {
+        if (result.status === 'fulfilled' && result.value) {
+          syncedEventIds.push(result.value)
         }
       }
     }

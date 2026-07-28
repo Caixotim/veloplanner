@@ -641,13 +641,15 @@
 
 .planHeader {
   display: flex;
+  flex-direction: row;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   padding: 1.5rem;
   background: var(--theme-surface-header);
   border: 1px solid var(--theme-border);
   border-radius: 10px;
   margin: 0 -1rem 2rem -1rem;
+  gap: 1rem;
 
   .headerLeft,
   .headerRight {
@@ -659,22 +661,54 @@
   .headerRight {
     flex-wrap: wrap;
     justify-content: flex-end;
+    min-width: 0;
+  }
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    padding: 1rem;
+    align-items: stretch;
+    gap: 0.75rem;
+
+    .headerLeft {
+      min-width: 0;
+    }
+
+    .headerRight {
+      justify-content: flex-start;
+      width: 100%;
+    }
   }
 }
 
 .planTitleBlock {
+  min-width: 0;
+  flex: 1;
+
   h1 {
     margin: 0;
     color: var(--theme-text-primary);
     font-size: 1.35rem;
     line-height: 1.2;
     font-weight: 800;
+    word-break: break-word;
   }
 
   p {
     margin: 0.25rem 0 0;
     color: var(--theme-text-secondary);
     font-size: 0.9rem;
+    word-break: break-word;
+  }
+
+  @media (max-width: 480px) {
+    h1 {
+      font-size: 1.1rem;
+    }
+
+    p {
+      font-size: 0.8rem;
+    }
   }
 }
 
@@ -683,10 +717,12 @@
   align-items: center;
   gap: 1rem;
   font-size: 0.9rem;
+  flex-wrap: wrap;
 
   .syncLabel {
     color: var(--theme-text-secondary);
     font-weight: 600;
+    flex-shrink: 0;
   }
 
   .syncBtn {
@@ -698,6 +734,8 @@
     cursor: pointer;
     font-weight: 600;
     transition: all 0.2s ease;
+    white-space: nowrap;
+    font-size: 0.85rem;
 
     &:hover:not(:disabled) {
       background: var(--theme-surface-hover);
@@ -708,6 +746,16 @@
       opacity: 0.5;
       cursor: not-allowed;
     }
+
+    @media (max-width: 480px) {
+      padding: 0.4rem 0.8rem;
+      font-size: 0.8rem;
+    }
+  }
+
+  @media (max-width: 480px) {
+    gap: 0.5rem;
+    font-size: 0.8rem;
   }
 }
 
