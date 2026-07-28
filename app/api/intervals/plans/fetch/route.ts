@@ -88,7 +88,13 @@ export async function POST(request: Request): Promise<Response> {
     const reconstructedPlans: TrainingPlan[] = []
 
     for (const [planId, planEvents] of planMap.entries()) {
-      const plan = reconstructPlanFromEvents(planId, planEvents)
+    // Sort events chronologically so firstDate is always the plan start
+    const sortedEvents = [...planEvents].sort((a, b) => {
+      const dateA = a.start_date_local ? new Date(a.start_date_local).getTime() : Infinity
+      const dateB = b.start_date_local ? new Date(b.start_date_local).getTime() : Infinity
+      return dateA - dateB
+    })
+    const plan = reconstructPlanFromEvents(planId, sortedEvents)
       if (plan) {
         reconstructedPlans.push(plan)
       }

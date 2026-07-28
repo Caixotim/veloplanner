@@ -19,6 +19,10 @@
   min-width: 260px;
   transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 
+  @media (max-width: 768px) {
+    display: none;
+  }
+
   h3 {
     margin: 0;
     color: var(--theme-text-secondary);
@@ -690,8 +694,7 @@
 
 .planTitleBlock {
   min-width: 0;
-  flex: 1 1 auto;
-  max-width: 100%;
+  flex: 1 1 0;
   overflow: hidden;
 
   h1 {
@@ -700,25 +703,23 @@
     font-size: 1.35rem;
     line-height: 1.2;
     font-weight: 800;
-    word-break: break-word;
-    overflow-wrap: break-word;
-    white-space: normal;
-    hyphens: auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   p {
     margin: 0.25rem 0 0;
     color: var(--theme-text-secondary);
     font-size: 0.9rem;
-    word-break: break-word;
-    overflow-wrap: break-word;
-    white-space: normal;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  @media (max-width: 480px) {
+  @media (max-width: 768px) {
     h1 {
       font-size: 1.1rem;
-      word-break: break-all;
     }
 
     p {
