@@ -69,8 +69,22 @@ export async function POST(request: Request): Promise<Response> {
       )
     }
 
-    const response = await intervalsRequest(`/api/v1/athlete/${config.athleteId}/events?limit=500`, {}, config)
-    const events = (await response.json()) as IntervalsEvent[]
+    const events: IntervalsEvent[] = []
+    const pageSize = 500
+    let offset = 0
+    let hasMore = true
+
+    while (hasMore) {
+      const response = await intervalsRequest(`/api/v1/athlete/${config.athleteId}/events?limit=${pageSize}&offset=${offset}`, {}, config)
+      const page = (await response.json()) as IntervalsEvent[]
+      events.push(...page)
+
+      if (page.length < pageSize) {
+        hasMore = false
+      } else {
+        offset += pageSize
+      }
+    }
 
     const prefix = `${externalPlanId}:`
     const matchingEvents = events.filter((event) => event.external_id?.startsWith(prefix))

@@ -88,13 +88,13 @@ export async function POST(request: Request): Promise<Response> {
     const reconstructedPlans: TrainingPlan[] = []
 
     for (const [planId, planEvents] of planMap.entries()) {
-    // Sort events chronologically so firstDate is always the plan start
-    const sortedEvents = [...planEvents].sort((a, b) => {
-      const dateA = a.start_date_local ? new Date(a.start_date_local).getTime() : Infinity
-      const dateB = b.start_date_local ? new Date(b.start_date_local).getTime() : Infinity
-      return dateA - dateB
-    })
-    const plan = reconstructPlanFromEvents(planId, sortedEvents)
+      // Sort events chronologically so firstDate is always the plan start.
+      const sortedEvents = [...planEvents].sort((a, b) => {
+        const dateA = a.start_date_local ? new Date(a.start_date_local).getTime() : Infinity
+        const dateB = b.start_date_local ? new Date(b.start_date_local).getTime() : Infinity
+        return dateA - dateB
+      })
+      const plan = reconstructPlanFromEvents(planId, sortedEvents)
       if (plan) {
         reconstructedPlans.push(plan)
       }
@@ -140,14 +140,15 @@ function reconstructPlanFromEvents(planId: string, events: IntervalsEvent[]): Tr
     const [, sessionId] = event.external_id.split(':')
     if (!sessionId) continue
 
-    const weekMatch = event.name?.match(/Week\s+(\d+)/)
-    const weekNumber = weekMatch ? parseInt(weekMatch[1], 10) : 1
+    const startDate = event.start_date_local ? new Date(event.start_date_local) : firstDate
+    const weekMatch = event.name?.match(/Week\s+(\d+)/i)
+    const inferredWeekFromDate = inferWeekNumberFromDate(firstDate, startDate)
+    const weekNumber = weekMatch ? parseInt(weekMatch[1], 10) : inferredWeekFromDate
 
     if (!sessions.has(weekNumber)) {
       sessions.set(weekNumber, [])
     }
 
-    const startDate = event.start_date_local ? new Date(event.start_date_local) : firstDate
     const endDate = event.end_date_local ? new Date(event.end_date_local) : startDate
     const duration = event.moving_time ? Math.round(event.moving_time / 60) : 60
 
@@ -207,6 +208,18 @@ function reconstructPlanFromEvents(planId: string, events: IntervalsEvent[]): Tr
     createdAt: new Date(),
     updatedAt: new Date(),
   }
+}
+
+function inferWeekNumberFromDate(planStartDate: Date, sessionDate: Date): number {
+  const normalizedStart = new Date(planStartDate.getFullYear(), planStartDate.getMonth(), planStartDate.getDate(), 0, 0, 0, 0)
+  const normalizedSession = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate(), 0, 0, 0, 0)
+  const dayDiff = Math.floor((normalizedSession.getTime() - normalizedStart.getTime()) / (24 * 60 * 60 * 1000))
+
+  if (dayDiff <= 0) {
+    return 1
+  }
+
+  return Math.floor(dayDiff / 7) + 1
 }
 
 function extractPlanName(name?: string): string | null {
