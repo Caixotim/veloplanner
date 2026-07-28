@@ -668,6 +668,8 @@ export default function PlansWorkspace() {
       // Do this BEFORE pushing anything so we don't accidentally re-add sessions
       // the user intentionally deleted in Intervals.icu.
       let planAfterDeletions = currentPlan
+      let shouldForcePlanPush = false
+      let missingRemoteSessionCount = 0
       let pendingLocalChanges = new Set(changedSessions)
       if (currentPlan?.externalPlanId) {
         try {
@@ -792,6 +794,30 @@ export default function PlansWorkspace() {
                   setSyncMessage(`Reconciled: ${syncNotes.join(' • ')}`)
                 }
               }
+
+              const remoteSessionIds = new Set(
+                checkPayload.events
+                  .map((event) => event.sessionId)
+                  .filter((sessionId): sessionId is string => typeof sessionId === 'string' && sessionId.length > 0)
+              )
+              const localTrainableSessions = (planAfterDeletions || currentPlan).weeks
+                .flatMap((week) => week.sessions)
+                .filter((session) => session.duration > 0)
+
+              const missingRemoteSessions = localTrainableSessions.filter((session) => !remoteSessionIds.has(session.id))
+              if (missingRemoteSessions.length > 0) {
+                shouldForcePlanPush = true
+                missingRemoteSessionCount = missingRemoteSessions.length
+              }
+            } else if (checkPayload.success && checkPayload.matchCount === 0) {
+              const localTrainableCount = currentPlan.weeks
+                .flatMap((week) => week.sessions)
+                .filter((session) => session.duration > 0).length
+
+              if (localTrainableCount > 0) {
+                shouldForcePlanPush = true
+                missingRemoteSessionCount = localTrainableCount
+              }
             }
           }
         } catch (checkError) {
@@ -803,7 +829,7 @@ export default function PlansWorkspace() {
       // Only push when there are pending local changes (changedSessions tracks edits
       // made in the app since the last save). If nothing changed locally, skip the push
       // entirely so we don't overwrite what the user may have changed in Intervals.icu.
-      if (planAfterDeletions?.externalPlanId && pendingLocalChanges.size > 0) {
+      if (planAfterDeletions?.externalPlanId && (pendingLocalChanges.size > 0 || shouldForcePlanPush)) {
         const pendingCount = pendingLocalChanges.size
         try {
           const pushResponse = await fetch('/api/intervals/plans', {
@@ -811,7 +837,31 @@ export default function PlansWorkspace() {
             headers: await buildIntervalsCredentialHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ mode: 'upsert', plan: planAfterDeletions }),
           })
-          if (pushResponse.ok) {
+          if (!pushResponse.ok) {
+            const payload = (await pushResponse.json()) as { error?: string; details?: string }
+            throw new Error(buildSyncErrorMessage(payload.error, payload.details))
+          }
+
+          const pushPayload = (await pushResponse.json()) as {
+            success: boolean
+            syncedEvents?: number
+            attemptedSessions?: number
+            failedSessions?: number
+            error?: string
+            details?: string
+          }
+
+          if (!pushPayload.success) {
+            throw new Error(buildSyncErrorMessage(pushPayload.error, pushPayload.details))
+          }
+
+          if (pushPayload.failedSessions && pushPayload.failedSessions > 0) {
+            throw new Error(
+              `Plan sync incomplete: ${pushPayload.syncedEvents || 0}/${pushPayload.attemptedSessions || 0} synced (${pushPayload.failedSessions} failed)`
+            )
+          }
+
+          {
             // Clear the pending-changes set after a successful push
             setChangedSessions(new Set())
             setPlanDiff(null)
@@ -826,9 +876,13 @@ export default function PlansWorkspace() {
             setPlan(syncedPlan)
             setCurrentPlan(syncedPlan)
             syncAudit.pushedLocal = pendingCount
+
+            if (shouldForcePlanPush && pendingCount === 0 && missingRemoteSessionCount > 0) {
+              setSyncMessage(`Recovered ${missingRemoteSessionCount} missing remote session(s) before ride/profile sync.`)
+            }
           }
         } catch (planPushError) {
-          console.warn('Plan upsert during sync failed — continuing with ride sync', { planPushError })
+          throw new Error(`Plan push failed: ${toErrorMessage(planPushError)}`)
         }
       }
 
@@ -1674,8 +1728,10 @@ export default function PlansWorkspace() {
         <div className={styles.planHeader}>
           <div className={styles.headerLeft}>
             <div className={styles.planTitleBlock}>
-              <h1>{currentPlan.name}</h1>
-              <p>{currentPlan.durationWeeks} weeks • {currentPlan.goal.replace('_', ' ')}</p>
+              <h1 title={currentPlan.name}>{currentPlan.name}</h1>
+              <p title={`${currentPlan.durationWeeks} weeks • ${currentPlan.goal.replace('_', ' ')}`}>
+                {currentPlan.durationWeeks} weeks • {currentPlan.goal.replace('_', ' ')}
+              </p>
             </div>
             <section className={styles.plannerStrategyCard} aria-label="Planner strategy summary">
               <h3>Planner Strategy</h3>
@@ -1716,37 +1772,65 @@ export default function PlansWorkspace() {
           </div>
 
           <div className={styles.headerRight}>
-            <Link className={styles.syncBtn} href={`/profile?planId=${currentPlan.id}`}>
-              Profile
-            </Link>
-            {lastSyncTime && (
-              <div className={styles.syncStatus}>
-                <span className={styles.syncLabel}>Last sync: {new Date(lastSyncTime).toLocaleTimeString()}</span>
-                <button onClick={performIntervalsSync} disabled={intervalsSyncStatus === 'syncing'} className={styles.syncBtn}>
-                  {intervalsSyncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}
-                </button>
-                <button onClick={isRunning ? stopSync : startSync} className={styles.syncBtn}>
-                  {isRunning ? 'Stop Auto Sync' : 'Start Auto Sync'}
-                </button>
-                <select
-                  className={styles.planSelect}
-                  value={currentPlan.id}
-                  onChange={(event) => handleSelectPlan(event.target.value)}
-                >
-                  {storedPlans.map((storedPlan) => (
-                    <option key={storedPlan.id} value={storedPlan.id}>
-                      {storedPlan.plan.name} - {new Date(storedPlan.updatedAt).toLocaleDateString()}
-                    </option>
-                  ))}
-                </select>
-                <button onClick={() => handleDeletePlan(currentPlan.id)} className={styles.syncBtn}>
-                  Delete Plan
-                </button>
-                <button onClick={() => handleDuplicatePlan(currentPlan.id)} className={styles.syncBtn}>
-                  Duplicate Plan
-                </button>
-              </div>
-            )}
+            <div className={styles.syncStatus}>
+              <span className={styles.syncLabel}>
+                {lastSyncTime ? `Last sync: ${new Date(lastSyncTime).toLocaleTimeString()}` : 'Not synced yet'}
+              </span>
+              <button onClick={performIntervalsSync} disabled={intervalsSyncStatus === 'syncing'} className={styles.syncBtn}>
+                {intervalsSyncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}
+              </button>
+              <button onClick={isRunning ? stopSync : startSync} className={styles.syncBtn}>
+                {isRunning ? 'Stop Auto Sync' : 'Start Auto Sync'}
+              </button>
+
+              <details className={styles.headerActionsMenu}>
+                <summary className={styles.syncBtn}>Actions</summary>
+                <div className={styles.headerActionsPanel}>
+                  <Link className={styles.syncBtn} href={`/profile?planId=${currentPlan.id}`}>
+                    Profile
+                  </Link>
+
+                  <label className={styles.compactActionField}>
+                    <span>Plan</span>
+                    <select className={styles.planSelect} value={currentPlan.id} onChange={(event) => handleSelectPlan(event.target.value)}>
+                      {storedPlans.map((storedPlan) => (
+                        <option key={storedPlan.id} value={storedPlan.id}>
+                          {storedPlan.plan.name} - {new Date(storedPlan.updatedAt).toLocaleDateString()}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className={styles.compactActionField}>
+                    <span>Sync mode</span>
+                    <select
+                      className={styles.syncModeSelect}
+                      value={syncReconciliationMode}
+                      onChange={(event) => setSyncReconciliationMode(event.target.value as SyncReconciliationMode)}
+                    >
+                      <option value="conservative">Conservative (no auto-delete local sessions)</option>
+                      <option value="strict_mirror">Strict mirror (apply remote deletions)</option>
+                    </select>
+                  </label>
+
+                  <label className={styles.checkboxLabel}>
+                    <input
+                      type="checkbox"
+                      checked={autoRetargetOnFtpSync}
+                      onChange={(event) => setAutoRetargetOnFtpSync(event.target.checked)}
+                    />
+                    <span>Auto-update future sessions when FTP changes from Intervals sync</span>
+                  </label>
+
+                  <button onClick={() => handleDuplicatePlan(currentPlan.id)} className={styles.syncBtn}>
+                    Duplicate Plan
+                  </button>
+                  <button onClick={() => handleDeletePlan(currentPlan.id)} className={styles.syncBtn}>
+                    Delete Plan
+                  </button>
+                </div>
+              </details>
+            </div>
 
             {syncMessage && <div className={clsx(styles.syncMessage, styles[intervalsSyncStatus])}>{syncMessage}</div>}
 
@@ -1766,26 +1850,6 @@ export default function PlansWorkspace() {
               </div>
             )}
 
-            <label className={styles.syncModeLabel}>
-              <span>Sync mode</span>
-              <select
-                className={styles.syncModeSelect}
-                value={syncReconciliationMode}
-                onChange={(event) => setSyncReconciliationMode(event.target.value as SyncReconciliationMode)}
-              >
-                <option value="conservative">Conservative (no auto-delete local sessions)</option>
-                <option value="strict_mirror">Strict mirror (apply remote deletions)</option>
-              </select>
-            </label>
-
-            <label className={styles.checkboxLabel}>
-              <input
-                type="checkbox"
-                checked={autoRetargetOnFtpSync}
-                onChange={(event) => setAutoRetargetOnFtpSync(event.target.checked)}
-              />
-              <span>Auto-update future sessions when FTP changes from Intervals sync</span>
-            </label>
           </div>
         </div>
 

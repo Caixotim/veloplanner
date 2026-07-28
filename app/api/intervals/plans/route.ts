@@ -18,6 +18,8 @@ type PlanSyncResponse = {
   success: boolean
   externalPlanId?: string
   syncedEvents?: number
+  attemptedSessions?: number
+  failedSessions?: number
   syncedEventIds?: number[]
   deleted?: number
   error?: string
@@ -57,8 +59,8 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const syncedEventIds: number[] = []
+    const failedSessionIds: string[] = []
     const BATCH_SIZE = 10
-    const REQUEST_TIMEOUT_MS = 30000
     const allSessions: Array<{ week: number; session: TrainingSession }> = []
 
     // Flatten all sessions across weeks
@@ -105,8 +107,74 @@ export async function POST(request: Request): Promise<Response> {
             moving_time: Math.max(0, session.duration * 60),
           }
 
-          const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+          const response = await intervalsRequest(
+            `/api/v1/athlete/${config.athleteId}/events?upsertOnUid=true`,
+            {
+              method: 'POST',
+              body: JSON.stringify(payload),
+            },
+            config
+          )
+
+          const created = (await response.json()) as SyncedEvent
+          return {
+            sessionId: session.id,
+            eventId: created.id || null,
+          }
+        } catch (error) {
+          console.warn(`Failed to sync session in batch: ${session.id}`, { error })
+          return {
+            sessionId: session.id,
+            eventId: null,
+          }
+        }
+      })
+
+      const results = await Promise.allSettled(promises)
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          if (result.value.eventId) {
+            syncedEventIds.push(result.value.eventId)
+          } else {
+            failedSessionIds.push(result.value.sessionId)
+          }
+        }
+      }
+    }
+
+    // Retry failed sessions one-by-one to recover from transient API/network issues.
+    if (failedSessionIds.length > 0) {
+      const failedSet = new Set(failedSessionIds)
+      const retrySessions = allSessions.filter(({ session }) => failedSet.has(session.id))
+      failedSessionIds.length = 0
+
+      for (const { week, session } of retrySessions) {
+        try {
+          const startDate = toDate(session.date)
+          const endDate = new Date(startDate.getTime() + session.duration * 60 * 1000)
+          const workoutType = getIntervalsWorkoutType(session)
+          const structuredFile = shouldAttachCyclingFile(workoutType)
+            ? buildStructuredWorkoutFile(plan, week, session)
+            : null
+          const payload = {
+            category: 'WORKOUT',
+            type: workoutType,
+            name: `[AI] ${plan.name} • Week ${week} ${session.type.toUpperCase()}`,
+            description: buildWorkoutDescription(session, workoutType),
+            ...(structuredFile
+              ? {
+                  file_contents: structuredFile.contents,
+                  filename: structuredFile.filename,
+                }
+              : {}),
+            start_date_local: toLocalDateTime(startDate),
+            end_date_local: toLocalDateTime(endDate),
+            start_date: toLocalIsoDate(startDate),
+            end_date: toLocalIsoDate(endDate),
+            uid: buildExternalEventId(externalPlanId, session.id),
+            external_id: buildExternalEventId(externalPlanId, session.id),
+            moving_time: Math.max(0, session.duration * 60),
+          }
 
           const response = await intervalsRequest(
             `/api/v1/athlete/${config.athleteId}/events?upsertOnUid=true`,
@@ -116,20 +184,16 @@ export async function POST(request: Request): Promise<Response> {
             },
             config
           )
-          clearTimeout(timeoutId)
 
           const created = (await response.json()) as SyncedEvent
-          return created.id || null
-        } catch (error) {
-          console.warn(`Failed to sync session in batch: ${session.id}`, { error })
-          return null
-        }
-      })
-
-      const results = await Promise.allSettled(promises)
-      for (const result of results) {
-        if (result.status === 'fulfilled' && result.value) {
-          syncedEventIds.push(result.value)
+          if (created.id) {
+            syncedEventIds.push(created.id)
+          } else {
+            failedSessionIds.push(session.id)
+          }
+        } catch (retryError) {
+          console.warn(`Retry failed for session: ${session.id}`, { retryError })
+          failedSessionIds.push(session.id)
         }
       }
     }
@@ -138,12 +202,29 @@ export async function POST(request: Request): Promise<Response> {
       planId: plan.id,
       mode,
       sessionsSynced: syncedEventIds.length,
+      sessionsAttempted: allSessions.length,
+      sessionsFailed: failedSessionIds.length,
     })
+
+    if (failedSessionIds.length > 0) {
+      return Response.json({
+        success: false,
+        externalPlanId,
+        syncedEvents: syncedEventIds.length,
+        attemptedSessions: allSessions.length,
+        failedSessions: failedSessionIds.length,
+        syncedEventIds,
+        error: 'Partial plan sync',
+        details: `Synced ${syncedEventIds.length}/${allSessions.length} sessions. ${failedSessionIds.length} sessions failed.`,
+      } satisfies PlanSyncResponse)
+    }
 
     return Response.json({
       success: true,
       externalPlanId,
       syncedEvents: syncedEventIds.length,
+      attemptedSessions: allSessions.length,
+      failedSessions: 0,
       syncedEventIds,
     } satisfies PlanSyncResponse)
   } catch (error) {
