@@ -1362,6 +1362,63 @@ export default function PlansWorkspace() {
     [currentPlan, loadProfileForPlan, refreshStoredPlans, syncPlanWithIntervals]
   )
 
+  const handleDeleteAllPlans = useCallback(async () => {
+    if (storedPlans.length === 0) {
+      return
+    }
+
+    const confirmed = window.confirm(`Delete all ${storedPlans.length} saved plan(s)? This removes local plan data and attempts to delete synced Intervals.icu events.`)
+    if (!confirmed) {
+      return
+    }
+
+    setLoading(true)
+
+    let remoteDeletedPlans = 0
+    let remoteDeleteFailures = 0
+
+    try {
+      for (const storedPlan of storedPlans) {
+        try {
+          const deleteResult = await syncPlanWithIntervals('delete', storedPlan.plan)
+          if (deleteResult.success) {
+            remoteDeletedPlans += 1
+          } else {
+            remoteDeleteFailures += 1
+          }
+        } catch (error) {
+          remoteDeleteFailures += 1
+          console.warn('Failed to delete remote plan during bulk clear', {
+            planId: storedPlan.id,
+            error: toErrorMessage(error),
+          })
+        }
+
+        await storage.deletePlan(storedPlan.id)
+      }
+
+      await refreshStoredPlans()
+      setPlan(null)
+      setCurrentPlan(null)
+      setUserProfile(null)
+      setPlanDiff(null)
+      setChangedSessions(new Set())
+      setIntervalsChanges([])
+      setLastSyncTime(null)
+      setIntervalsSyncStatus('idle')
+
+      if (remoteDeleteFailures > 0) {
+        setSyncMessage(
+          `Deleted all local plans. Removed ${remoteDeletedPlans}/${storedPlans.length} synced plan(s) from Intervals.icu; ${remoteDeleteFailures} remote delete(s) failed.`
+        )
+      } else {
+        setSyncMessage(`Deleted all ${storedPlans.length} plan(s).`)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }, [refreshStoredPlans, storedPlans, syncPlanWithIntervals])
+
   const handleDuplicatePlan = useCallback(
     async (planId: string) => {
       try {
@@ -1752,6 +1809,9 @@ export default function PlansWorkspace() {
           <h2>Saved Plans</h2>
           <p className={styles.sectionHint}>Named plans stay listed here so you can open or delete them without losing track of the calendar.</p>
         </div>
+        <button className={styles.syncBtn} onClick={handleDeleteAllPlans} disabled={loading || storedPlans.length === 0}>
+          Delete All Plans
+        </button>
       </div>
       <div className={styles.savedPlansList}>
         {storedPlans.map((storedPlan) => (
