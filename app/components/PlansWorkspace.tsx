@@ -671,6 +671,17 @@ export default function PlansWorkspace() {
       let shouldForcePlanPush = false
       let missingRemoteSessionCount = 0
       let pendingLocalChanges = new Set(changedSessions)
+      const localTrainableSessionCount =
+        currentPlan?.weeks.flatMap((week) => week.sessions).filter((session) => session.duration > 0).length || 0
+      const hasRecordedPlanSync = Boolean(currentPlan?.intervalsSync?.syncedAt)
+
+      // If the plan has never been marked as synced, force a full upsert once.
+      // This prevents "Sync Now" from skipping plan push when changedSessions is empty.
+      if (currentPlan && localTrainableSessionCount > 0 && !hasRecordedPlanSync) {
+        shouldForcePlanPush = true
+        missingRemoteSessionCount = localTrainableSessionCount
+      }
+
       if (currentPlan?.externalPlanId) {
         try {
           const checkResponse = await fetch('/api/intervals/plans/check', {
@@ -829,7 +840,7 @@ export default function PlansWorkspace() {
       // Only push when there are pending local changes (changedSessions tracks edits
       // made in the app since the last save). If nothing changed locally, skip the push
       // entirely so we don't overwrite what the user may have changed in Intervals.icu.
-      if (planAfterDeletions?.externalPlanId && (pendingLocalChanges.size > 0 || shouldForcePlanPush)) {
+      if (planAfterDeletions && (pendingLocalChanges.size > 0 || shouldForcePlanPush)) {
         const pendingCount = pendingLocalChanges.size
         try {
           const pushResponse = await fetch('/api/intervals/plans', {
@@ -875,7 +886,8 @@ export default function PlansWorkspace() {
             await storage.updatePlan(syncedPlan.id, syncedPlan)
             setPlan(syncedPlan)
             setCurrentPlan(syncedPlan)
-            syncAudit.pushedLocal = pendingCount
+            const pushedCount = pendingCount > 0 ? pendingCount : (pushPayload.syncedEvents || missingRemoteSessionCount)
+            syncAudit.pushedLocal = pushedCount
 
             if (shouldForcePlanPush && pendingCount === 0 && missingRemoteSessionCount > 0) {
               setSyncMessage(`Recovered ${missingRemoteSessionCount} missing remote session(s) before ride/profile sync.`)
