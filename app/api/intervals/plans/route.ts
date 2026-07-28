@@ -20,6 +20,7 @@ type PlanSyncResponse = {
   syncedEvents?: number
   attemptedSessions?: number
   failedSessions?: number
+  failedSessionIds?: string[]
   syncedEventIds?: number[]
   deleted?: number
   error?: string
@@ -78,45 +79,7 @@ export async function POST(request: Request): Promise<Response> {
 
       const promises = batch.map(async ({ week, session }) => {
         try {
-          const startDate = toDate(session.date)
-          const endDate = new Date(startDate.getTime() + session.duration * 60 * 1000)
-          const workoutType = getIntervalsWorkoutType(session)
-          const structuredFile = shouldAttachCyclingFile(workoutType)
-            ? buildStructuredWorkoutFile(plan, week, session)
-            : null
-          const payload = {
-            category: 'WORKOUT',
-            type: workoutType,
-            name: `[AI] ${plan.name} • Week ${week} ${session.type.toUpperCase()}`,
-            description: buildWorkoutDescription(session, workoutType),
-            // Send bike-specific structured files only for cycling session types.
-            ...(structuredFile
-              ? {
-                  file_contents: structuredFile.contents,
-                  filename: structuredFile.filename,
-                }
-              : {}),
-            // Intervals calendar expects local datetime strings without timezone suffix.
-            start_date_local: toLocalDateTime(startDate),
-            end_date_local: toLocalDateTime(endDate),
-            // Include date-only fields so the event appears on the expected calendar day.
-            start_date: toLocalIsoDate(startDate),
-            end_date: toLocalIsoDate(endDate),
-            uid: buildExternalEventId(externalPlanId, session.id),
-            external_id: buildExternalEventId(externalPlanId, session.id),
-            moving_time: Math.max(0, session.duration * 60),
-          }
-
-          const response = await intervalsRequest(
-            `/api/v1/athlete/${config.athleteId}/events?upsertOnUid=true`,
-            {
-              method: 'POST',
-              body: JSON.stringify(payload),
-            },
-            config
-          )
-
-          const created = (await response.json()) as SyncedEvent
+          const created = await upsertIntervalsSession(config, plan, externalPlanId, week, session)
           return {
             sessionId: session.id,
             eventId: created.id || null,
@@ -150,42 +113,7 @@ export async function POST(request: Request): Promise<Response> {
 
       for (const { week, session } of retrySessions) {
         try {
-          const startDate = toDate(session.date)
-          const endDate = new Date(startDate.getTime() + session.duration * 60 * 1000)
-          const workoutType = getIntervalsWorkoutType(session)
-          const structuredFile = shouldAttachCyclingFile(workoutType)
-            ? buildStructuredWorkoutFile(plan, week, session)
-            : null
-          const payload = {
-            category: 'WORKOUT',
-            type: workoutType,
-            name: `[AI] ${plan.name} • Week ${week} ${session.type.toUpperCase()}`,
-            description: buildWorkoutDescription(session, workoutType),
-            ...(structuredFile
-              ? {
-                  file_contents: structuredFile.contents,
-                  filename: structuredFile.filename,
-                }
-              : {}),
-            start_date_local: toLocalDateTime(startDate),
-            end_date_local: toLocalDateTime(endDate),
-            start_date: toLocalIsoDate(startDate),
-            end_date: toLocalIsoDate(endDate),
-            uid: buildExternalEventId(externalPlanId, session.id),
-            external_id: buildExternalEventId(externalPlanId, session.id),
-            moving_time: Math.max(0, session.duration * 60),
-          }
-
-          const response = await intervalsRequest(
-            `/api/v1/athlete/${config.athleteId}/events?upsertOnUid=true`,
-            {
-              method: 'POST',
-              body: JSON.stringify(payload),
-            },
-            config
-          )
-
-          const created = (await response.json()) as SyncedEvent
+          const created = await upsertIntervalsSession(config, plan, externalPlanId, week, session, { minimalPayload: true })
           if (created.id) {
             syncedEventIds.push(created.id)
           } else {
@@ -213,9 +141,10 @@ export async function POST(request: Request): Promise<Response> {
         syncedEvents: syncedEventIds.length,
         attemptedSessions: allSessions.length,
         failedSessions: failedSessionIds.length,
+        failedSessionIds,
         syncedEventIds,
         error: 'Partial plan sync',
-        details: `Synced ${syncedEventIds.length}/${allSessions.length} sessions. ${failedSessionIds.length} sessions failed.`,
+        details: `Synced ${syncedEventIds.length}/${allSessions.length} sessions. ${failedSessionIds.length} sessions failed (${failedSessionIds.join(', ')}).`,
       } satisfies PlanSyncResponse)
     }
 
@@ -225,6 +154,7 @@ export async function POST(request: Request): Promise<Response> {
       syncedEvents: syncedEventIds.length,
       attemptedSessions: allSessions.length,
       failedSessions: 0,
+      failedSessionIds: [],
       syncedEventIds,
     } satisfies PlanSyncResponse)
   } catch (error) {
@@ -314,6 +244,63 @@ function buildExternalEventId(externalPlanId: string, sessionId: string): string
   return `${externalPlanId}:${sessionId}`
 }
 
+async function upsertIntervalsSession(
+  config: { apiKey: string; athleteId: string; baseUrl: string },
+  plan: TrainingPlan,
+  externalPlanId: string,
+  week: number,
+  session: TrainingSession,
+  options: { minimalPayload?: boolean } = {}
+): Promise<SyncedEvent> {
+  const payload = buildIntervalsEventPayload(plan, externalPlanId, week, session, options)
+  const response = await intervalsRequest(
+    `/api/v1/athlete/${config.athleteId}/events?upsertOnUid=true`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    config
+  )
+
+  return (await response.json()) as SyncedEvent
+}
+
+function buildIntervalsEventPayload(
+  plan: TrainingPlan,
+  externalPlanId: string,
+  week: number,
+  session: TrainingSession,
+  options: { minimalPayload?: boolean } = {}
+): Record<string, unknown> {
+  const startDate = toDate(session.date)
+  const endDate = new Date(startDate.getTime() + session.duration * 60 * 1000)
+  const workoutType = getIntervalsWorkoutType(session)
+  const isMinimalPayload = options.minimalPayload === true
+  const structuredFile = !isMinimalPayload && shouldAttachCyclingFile(workoutType)
+    ? buildStructuredWorkoutFile(plan, week, session)
+    : null
+
+  return {
+    category: 'WORKOUT',
+    type: workoutType,
+    name: `[AI] ${plan.name} • Week ${week} ${session.type.toUpperCase()}`,
+    description: isMinimalPayload ? buildMinimalWorkoutDescription(session, workoutType) : buildWorkoutDescription(session, workoutType),
+    ...(structuredFile
+      ? {
+          file_contents: structuredFile.contents,
+          filename: structuredFile.filename,
+        }
+      : {}),
+    start_date_local: toLocalDateTime(startDate),
+    end_date_local: toLocalDateTime(endDate),
+    start_date: toLocalIsoDate(startDate),
+    end_date: toLocalIsoDate(endDate),
+    uid: buildExternalEventId(externalPlanId, session.id),
+    external_id: buildExternalEventId(externalPlanId, session.id),
+    moving_time: Math.max(0, session.duration * 60),
+  }
+}
+
 function flattenTrainableSessions(plan: TrainingPlan): TrainingSession[] {
   return plan.weeks.flatMap((week) => week.sessions).filter((session) => !isRestDay(session))
 }
@@ -334,6 +321,18 @@ function buildWorkoutDescription(session: TrainingSession, workoutType: string):
   const structured = session.structuredWorkout?.length ? session.structuredWorkout.join('\n') : session.description
   const notes = session.notes ? `\n\nNotes:\n${session.notes}` : ''
   return `${session.description}\n\n${structured}${notes}`
+}
+
+function buildMinimalWorkoutDescription(session: TrainingSession, workoutType: string): string {
+  if (workoutType === 'WeightTraining') {
+    return `Strength Session (${session.duration} min)`
+  }
+
+  if (workoutType === 'Rowing' || workoutType === 'VirtualRow') {
+    return `Rowing Session (${session.duration} min)`
+  }
+
+  return session.description
 }
 
 function getIntervalsWorkoutType(session: TrainingSession): string {

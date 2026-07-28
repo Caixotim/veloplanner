@@ -882,11 +882,12 @@ export default function PlansWorkspace() {
       // entirely so we don't overwrite what the user may have changed in Intervals.icu.
       if (planAfterDeletions && (pendingLocalChanges.size > 0 || shouldForcePlanPush)) {
         const pendingCount = pendingLocalChanges.size
+        const planPushMode: PlanSyncMode = shouldForcePlanPush ? 'replace' : 'upsert'
         try {
           const pushResponse = await fetch('/api/intervals/plans', {
             method: 'POST',
             headers: await buildIntervalsCredentialHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify({ mode: 'upsert', plan: planAfterDeletions }),
+            body: JSON.stringify({ mode: planPushMode, plan: planAfterDeletions }),
           })
           if (!pushResponse.ok) {
             const payload = (await pushResponse.json()) as { error?: string; details?: string }
