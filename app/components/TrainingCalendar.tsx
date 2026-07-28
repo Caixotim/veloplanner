@@ -214,10 +214,14 @@ function buildCalendarWeekRows(plan: TrainingPlan): CalendarWeekRow[] {
       sourceDayOfWeek: number
     }
   >()
+  const sessionDates: Date[] = []
 
   for (const week of plan.weeks) {
     for (const session of week.sessions) {
       const parsedDate = toDate(session.date)
+      if (!Number.isNaN(parsedDate.getTime())) {
+        sessionDates.push(parsedDate)
+      }
       const dateKey = formatDateKey(parsedDate)
       sessionByDate.set(dateKey, {
         session,
@@ -231,8 +235,19 @@ function buildCalendarWeekRows(plan: TrainingPlan): CalendarWeekRow[] {
   const planEnd = new Date(planStart)
   planEnd.setDate(planStart.getDate() + plan.durationWeeks * WEEK_LENGTH_DAYS - 1)
 
-  const firstWeekStart = startOfIsoWeek(planStart)
-  const lastWeekStart = startOfIsoWeek(planEnd)
+  const minSessionDate = sessionDates.length
+    ? normalizeDateOnly(new Date(Math.min(...sessionDates.map((date) => date.getTime()))))
+    : null
+  const maxSessionDate = sessionDates.length
+    ? normalizeDateOnly(new Date(Math.max(...sessionDates.map((date) => date.getTime()))))
+    : null
+
+  // Be resilient to stale plan metadata by anchoring the rendered range to real session dates.
+  const effectiveStart = minSessionDate && minSessionDate.getTime() < planStart.getTime() ? minSessionDate : planStart
+  const effectiveEnd = maxSessionDate && maxSessionDate.getTime() > planEnd.getTime() ? maxSessionDate : planEnd
+
+  const firstWeekStart = startOfIsoWeek(effectiveStart)
+  const lastWeekStart = startOfIsoWeek(effectiveEnd)
 
   const rows: CalendarWeekRow[] = []
   for (let weekStartMs = firstWeekStart.getTime(); weekStartMs <= lastWeekStart.getTime(); weekStartMs += WEEK_LENGTH_DAYS * MS_PER_DAY) {
@@ -246,8 +261,8 @@ function buildCalendarWeekRows(plan: TrainingPlan): CalendarWeekRow[] {
       date.setDate(startDate.getDate() + dayIndex)
       const dateKey = formatDateKey(date)
       const source = sessionByDate.get(dateKey)
-      const isInPlanRange = date.getTime() >= planStart.getTime() && date.getTime() <= planEnd.getTime()
-      const derivedCoordinates = source ? null : getPlanCoordinatesForDate(planStart, date, plan.durationWeeks)
+      const isInPlanRange = date.getTime() >= effectiveStart.getTime() && date.getTime() <= effectiveEnd.getTime()
+      const derivedCoordinates = source ? null : getPlanCoordinatesForDate(effectiveStart, date, plan.durationWeeks)
 
       return {
         date,
