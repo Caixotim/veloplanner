@@ -534,6 +534,40 @@ export default function PlansWorkspace() {
     return sortedPlans
   }, [])
 
+  const repairCollapsedPlan = useCallback(async (planToRepair: TrainingPlan, profileSeed?: Partial<UserProfile> | null) => {
+    if (!hasCollapsedFutureWeeks(planToRepair)) {
+      return planToRepair
+    }
+
+    const repairProfile = buildAthleteProfileTemplate({
+      ...buildEditableProfile(planToRepair, profileSeed),
+      id: planToRepair.userId,
+      planName: planToRepair.name,
+      goal: planToRepair.goal,
+      planStartDate: formatDateInput(planToRepair.startDate),
+      desiredPlanWeeks: planToRepair.durationWeeks,
+    })
+
+    try {
+      const planRequest = buildPlanRequest(repairProfile)
+      const intervalsInsights = await getIntervalsTrainingInsights(repairProfile.weight)
+      const blockedDates = await fetchIntervalsBlockedDates(
+        formatDateInput(planRequest.startDate),
+        formatDateInput(new Date(planRequest.startDate.getTime() + planRequest.durationWeeks * 7 * 24 * 60 * 60 * 1000))
+      )
+
+      const regeneratedPlan = generateTrainingPlan(planToRepair.userId, planRequest, buildAthletePlanContext(repairProfile), {
+        intervalsInsights,
+        blockedDates,
+      })
+
+      return mergeCollapsedPlanWithRegeneratedWeeks(planToRepair, regeneratedPlan)
+    } catch (repairError) {
+      console.warn('Failed to regenerate collapsed plan; keeping current plan', { repairError })
+      return planToRepair
+    }
+  }, [])
+
   const loadProfileForPlan = useCallback(async (planToLoad: TrainingPlan) => {
     const storedProfile = await storage.loadProfile(planToLoad.userId)
 
@@ -585,14 +619,15 @@ export default function PlansWorkspace() {
 
         if (plans.length > 0) {
           const latestPlan = plans[0]
-          const activePlan = recoverCorruptedStoredPlan(latestPlan)
+          const recoveredPlan = recoverCorruptedStoredPlan(latestPlan)
+          const matchingProfile = storedProfiles.find((profile) => profile.id === recoveredPlan.userId) || buildEditableProfile(recoveredPlan)
+          const activePlan = await repairCollapsedPlan(recoveredPlan, matchingProfile)
           if (activePlan !== latestPlan.plan) {
             await storage.updatePlan(latestPlan.id, activePlan)
           }
 
           setPlan(activePlan)
           setCurrentPlan(activePlan)
-          const matchingProfile = storedProfiles.find((profile) => profile.id === activePlan.userId) || buildEditableProfile(activePlan)
           setUserProfile(matchingProfile)
           await refreshIntervalsInsightsSnapshot(matchingProfile.weight)
           setSyncMessage(activePlan !== latestPlan.plan ? 'Recovered saved plan from original local snapshot' : 'Loaded latest saved plan')
@@ -1248,7 +1283,9 @@ export default function PlansWorkspace() {
       return
     }
 
-    const activePlan = recoverCorruptedStoredPlan(selectedPlan)
+    const recoveredPlan = recoverCorruptedStoredPlan(selectedPlan)
+    const existingProfile = await storage.loadProfile(recoveredPlan.userId)
+    const activePlan = await repairCollapsedPlan(recoveredPlan, existingProfile || buildEditableProfile(recoveredPlan))
     if (activePlan !== selectedPlan.plan) {
       await storage.updatePlan(selectedPlan.id, activePlan)
     }
@@ -1260,7 +1297,7 @@ export default function PlansWorkspace() {
     const loadedProfile = await loadProfileForPlan(activePlan)
     await refreshIntervalsInsightsSnapshot(loadedProfile?.weight)
     setSyncMessage(activePlan !== selectedPlan.plan ? `Recovered plan ${activePlan.id} from original local snapshot` : `Loaded plan ${activePlan.id}`)
-  }, [loadProfileForPlan, refreshIntervalsInsightsSnapshot])
+  }, [loadProfileForPlan, refreshIntervalsInsightsSnapshot, repairCollapsedPlan])
 
   const athleteSignature = latestIntervalsInsights?.athleteSignature
   const signatureBiasReasons = useMemo(() => deriveSignatureBiasReasons(athleteSignature), [athleteSignature])
@@ -2503,6 +2540,10 @@ function countTrainableSessionsAfterWeekOne(plan: TrainingPlan): number {
     .filter((session) => session.duration > 0).length
 }
 
+function hasCollapsedFutureWeeks(plan: TrainingPlan): boolean {
+  return plan.durationWeeks > 1 && countTrainableSessionsAfterWeekOne(plan) === 0
+}
+
 function recoverCorruptedStoredPlan(storedPlan: StoredPlan): TrainingPlan {
   const currentPlan = storedPlan.plan
   const originalPlan = storedPlan.originalPlan
@@ -2528,6 +2569,33 @@ function recoverCorruptedStoredPlan(storedPlan: StoredPlan): TrainingPlan {
     externalPlanId: currentPlan.externalPlanId || originalPlan.externalPlanId || originalPlan.id,
     intervalsSync: currentPlan.intervalsSync,
     updatedAt: currentPlan.updatedAt,
+  }
+}
+
+function mergeCollapsedPlanWithRegeneratedWeeks(basePlan: TrainingPlan, regeneratedPlan: TrainingPlan): TrainingPlan {
+  const mergedWeeks = regeneratedPlan.weeks.map((regeneratedWeek) => {
+    const baseWeek = basePlan.weeks.find((week) => week.weekNumber === regeneratedWeek.weekNumber)
+    if (!baseWeek) {
+      return regeneratedWeek
+    }
+
+    const baseWeekHasTrainable = baseWeek.sessions.some((session) => session.duration > 0)
+    if (baseWeek.weekNumber === 1 || baseWeekHasTrainable) {
+      return baseWeek
+    }
+
+    return regeneratedWeek
+  })
+
+  return {
+    ...regeneratedPlan,
+    id: basePlan.id,
+    externalPlanId: basePlan.externalPlanId || regeneratedPlan.externalPlanId || basePlan.id,
+    createdAt: basePlan.createdAt,
+    updatedAt: basePlan.updatedAt,
+    intervalsSync: basePlan.intervalsSync,
+    weeks: mergedWeeks,
+    mealSuggestions: basePlan.mealSuggestions?.length ? basePlan.mealSuggestions : regeneratedPlan.mealSuggestions,
   }
 }
 
