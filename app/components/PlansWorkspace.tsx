@@ -585,12 +585,17 @@ export default function PlansWorkspace() {
 
         if (plans.length > 0) {
           const latestPlan = plans[0]
-          setPlan(latestPlan.plan)
-          setCurrentPlan(latestPlan.plan)
-          const matchingProfile = storedProfiles.find((profile) => profile.id === latestPlan.plan.userId) || buildEditableProfile(latestPlan.plan)
+          const activePlan = recoverCorruptedStoredPlan(latestPlan)
+          if (activePlan !== latestPlan.plan) {
+            await storage.updatePlan(latestPlan.id, activePlan)
+          }
+
+          setPlan(activePlan)
+          setCurrentPlan(activePlan)
+          const matchingProfile = storedProfiles.find((profile) => profile.id === activePlan.userId) || buildEditableProfile(activePlan)
           setUserProfile(matchingProfile)
           await refreshIntervalsInsightsSnapshot(matchingProfile.weight)
-          setSyncMessage('Loaded latest saved plan')
+          setSyncMessage(activePlan !== latestPlan.plan ? 'Recovered saved plan from original local snapshot' : 'Loaded latest saved plan')
         } else {
           // No local plans—try to fetch backup plans from Intervals.icu
           const backupResult = await fetchPlansFromIntervals()
@@ -1243,13 +1248,18 @@ export default function PlansWorkspace() {
       return
     }
 
-    setPlan(selectedPlan.plan)
-    setCurrentPlan(selectedPlan.plan)
+    const activePlan = recoverCorruptedStoredPlan(selectedPlan)
+    if (activePlan !== selectedPlan.plan) {
+      await storage.updatePlan(selectedPlan.id, activePlan)
+    }
+
+    setPlan(activePlan)
+    setCurrentPlan(activePlan)
     setPlanDiff(null)
     setChangedSessions(new Set())
-    const loadedProfile = await loadProfileForPlan(selectedPlan.plan)
+    const loadedProfile = await loadProfileForPlan(activePlan)
     await refreshIntervalsInsightsSnapshot(loadedProfile?.weight)
-    setSyncMessage(`Loaded plan ${selectedPlan.plan.id}`)
+    setSyncMessage(activePlan !== selectedPlan.plan ? `Recovered plan ${activePlan.id} from original local snapshot` : `Loaded plan ${activePlan.id}`)
   }, [loadProfileForPlan, refreshIntervalsInsightsSnapshot])
 
   const athleteSignature = latestIntervalsInsights?.athleteSignature
@@ -2480,6 +2490,45 @@ function deriveSignatureBiasReasons(signature?: AthleteRideSignature): string[] 
   }
 
   return reasons
+}
+
+function countTrainableSessions(plan: TrainingPlan): number {
+  return plan.weeks.flatMap((week) => week.sessions).filter((session) => session.duration > 0).length
+}
+
+function countTrainableSessionsAfterWeekOne(plan: TrainingPlan): number {
+  return plan.weeks
+    .filter((week) => week.weekNumber > 1)
+    .flatMap((week) => week.sessions)
+    .filter((session) => session.duration > 0).length
+}
+
+function recoverCorruptedStoredPlan(storedPlan: StoredPlan): TrainingPlan {
+  const currentPlan = storedPlan.plan
+  const originalPlan = storedPlan.originalPlan
+
+  if (!currentPlan || !originalPlan || currentPlan.durationWeeks <= 1) {
+    return currentPlan
+  }
+
+  const currentFutureTrainable = countTrainableSessionsAfterWeekOne(currentPlan)
+  const originalFutureTrainable = countTrainableSessionsAfterWeekOne(originalPlan)
+  const currentTotalTrainable = countTrainableSessions(currentPlan)
+  const originalTotalTrainable = countTrainableSessions(originalPlan)
+
+  const looksCollapsedToWeekOne = currentFutureTrainable === 0 && originalFutureTrainable > 0
+  const originalHasMeaningfullyMoreData = originalTotalTrainable >= currentTotalTrainable + 3
+
+  if (!looksCollapsedToWeekOne || !originalHasMeaningfullyMoreData) {
+    return currentPlan
+  }
+
+  return {
+    ...originalPlan,
+    externalPlanId: currentPlan.externalPlanId || originalPlan.externalPlanId || originalPlan.id,
+    intervalsSync: currentPlan.intervalsSync,
+    updatedAt: currentPlan.updatedAt,
+  }
 }
 
 function formatDateInput(date: Date | string): string {
