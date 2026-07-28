@@ -221,11 +221,21 @@
 
 .sessionCell {
   padding: 0.28rem;
-  min-height: 158px;
+  min-height: 60px;
   vertical-align: top;
   border: 1px solid #e4eef7;
   cursor: grab;
   transition: background-color 0.2s ease, border-color 0.2s ease;
+
+  @media (max-width: 480px) {
+    min-height: 50px;
+    padding: 0.2rem;
+  }
+
+  @media (max-width: 360px) {
+    min-height: 45px;
+    padding: 0.15rem;
+  }
 
   &:active {
     cursor: grabbing;
@@ -348,6 +358,7 @@
     }
 
     .levelBadge {
+      display: none;
       font-size: 0.56rem;
       font-weight: 700;
       letter-spacing: 0.04em;
@@ -360,6 +371,7 @@
     }
 
     .subtypeBadge {
+      display: none;
       font-size: 0.54rem;
       font-weight: 700;
       letter-spacing: 0.03em;
@@ -376,6 +388,7 @@
     }
 
     .zoneVersionBadge {
+      display: none;
       font-size: 0.52rem;
       font-weight: 800;
       letter-spacing: 0.04em;
@@ -424,6 +437,7 @@
     }
 
     .nutritionBadge {
+      display: none;
       display: inline-flex;
       align-items: center;
       font-size: 0.52rem;

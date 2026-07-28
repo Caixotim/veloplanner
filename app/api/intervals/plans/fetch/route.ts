@@ -38,12 +38,30 @@ export async function POST(request: Request): Promise<Response> {
       )
     }
 
-    // Fetch all events from Intervals.icu
-    const response = await intervalsRequest(`/api/v1/athlete/${config.athleteId}/events?limit=500`, {}, config)
-    const events = (await response.json()) as IntervalsEvent[]
+    // Fetch all events from Intervals.icu with pagination
+    const allEvents: IntervalsEvent[] = []
+    const pageSize = 500
+    let offset = 0
+    let hasMore = true
+
+    while (hasMore) {
+      const response = await intervalsRequest(
+        `/api/v1/athlete/${config.athleteId}/events?limit=${pageSize}&offset=${offset}`,
+        {},
+        config
+      )
+      const events = (await response.json()) as IntervalsEvent[]
+      allEvents.push(...events)
+
+      if (events.length < pageSize) {
+        hasMore = false
+      } else {
+        offset += pageSize
+      }
+    }
 
     // Filter for AI-generated workout events
-    const aiEvents = events.filter((e) => e.name?.includes('[AI]') && e.external_id)
+    const aiEvents = allEvents.filter((e) => e.name?.includes('[AI]') && e.external_id)
 
     if (aiEvents.length === 0) {
       return Response.json({
