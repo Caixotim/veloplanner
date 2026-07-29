@@ -403,7 +403,9 @@ function generateWeekSessions(
     }
 
     const isFtpTestSession = ftpTestKind !== null && ftpTestDay === sessionDef.day && availableMinutes >= 50
-    const adaptedType = isFtpTestSession ? 'threshold' : adaptSessionTypeForAvailability(sessionDef.type, availableMinutes)
+    const adaptedType = isFtpTestSession
+      ? 'threshold'
+      : adaptSessionTypeForAvailability(sessionDef.type, availableMinutes, userProfile.shortDayPreference)
     let adjustedDuration = getAvailabilityDrivenDuration({
       sessionType: adaptedType,
       templateDuration: sessionDef.duration,
@@ -695,12 +697,29 @@ function getAnchoredLongRideDuration({ weekNumber, totalWeeks, availableMinutes,
   return Math.max(90, Math.round(duration / 5) * 5)
 }
 
-function adaptSessionTypeForAvailability(type: SessionType, availableMinutes: number): SessionType {
+function adaptSessionTypeForAvailability(
+  type: SessionType,
+  availableMinutes: number,
+  shortDayPreference?: UserProfile['shortDayPreference']
+): SessionType {
+  const prefersVo2Micro = shortDayPreference === 'vo2_micro'
+  const isHardType = type === 'threshold' || type === 'vo2max' || type === 'anaerobic'
+
   if (availableMinutes < 35) {
+    // Preserve short high-quality intent for micro-interval focused plans instead
+    // of defaulting to recovery whenever availability is tight.
+    if (prefersVo2Micro && isHardType && availableMinutes >= 30) {
+      return 'vo2max'
+    }
+
     return 'recovery'
   }
 
-  if (availableMinutes < 50 && (type === 'threshold' || type === 'vo2max' || type === 'anaerobic')) {
+  if (availableMinutes < 50 && isHardType) {
+    if (prefersVo2Micro) {
+      return 'vo2max'
+    }
+
     return 'tempo'
   }
 
