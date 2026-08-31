@@ -456,11 +456,12 @@ export default function Home() {
   return (
     <div className={styles.container}>
       <section className={styles.hero}>
-        <h1>Dashboard</h1>
-        <p>Quick view of your ride history, rider profile, and sync health.</p>
+        <p className={styles.heroEyebrow}>VeloPlanner overview</p>
+        <h1>Train with clarity</h1>
+        <p>Start with today&apos;s coaching recommendation, then use your progress metrics when you want to understand the bigger picture.</p>
         <div className={styles.heroActions}>
           <Link href="/plans" className={styles.primaryCta}>
-            Open Plans
+            Open Coach
           </Link>
           <Link href="/profile" className={styles.secondaryCta}>
             Open Profile
@@ -469,6 +470,13 @@ export default function Home() {
       </section>
 
       <section className={styles.metricsSection}>
+        <div className={styles.sectionIntro}>
+          <div>
+            <h2>Progress at a glance</h2>
+            <p>Useful context without turning every training decision into a spreadsheet.</p>
+          </div>
+          <Link href="/plans" className={styles.textLink}>View coaching</Link>
+        </div>
         <div className={styles.metricsGrid}>
           <article className={styles.metricCard}>
             <h2>{loading ? '...' : stats.totalRidesSynced}</h2>

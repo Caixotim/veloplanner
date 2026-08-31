@@ -17,8 +17,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>
+    <html lang="en" suppressHydrationWarning>
+      <body suppressHydrationWarning>
         <script
           dangerouslySetInnerHTML={{
             __html: `(() => {
@@ -51,25 +51,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <nav className="nav">
               <Link href="/" className="navButton navSimpleButton">
                 <HomeIcon size={16} className="navIcon" />
-                Home
+                Overview
               </Link>
               <Link href="/plans" className="navButton">
                 <CalendarIcon size={16} className="navIcon" />
-                Plans
+                Coach
               </Link>
               <Link href="/integrations" className="navButton">
                 <PlugIcon size={16} className="navIcon" />
-                Integrations
+                Connect data
               </Link>
               <Link href="/profile" className="navButton">
                 <UserIcon size={16} className="navIcon" />
-                Profile
+                Athlete
               </Link>
               <SettingsMenu />
             </nav>
             <Link href="/integrations" className="mobileIntegrationsQuickLink" aria-label="Open integrations">
               <PlugIcon size={16} className="navIcon" />
-              Integrations
+              Connect data
             </Link>
           </div>
         </header>

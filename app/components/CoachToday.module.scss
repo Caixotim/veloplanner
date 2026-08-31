@@ -1,0 +1,181 @@
+.wrapper {
+  display: grid;
+  gap: 1rem;
+}
+
+.intro,
+.primaryGrid,
+.secondaryGrid {
+  display: grid;
+  gap: 1rem;
+}
+
+.intro {
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  padding: 1.5rem;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--theme-header-bg), color-mix(in srgb, var(--theme-header-bg) 72%, var(--theme-accent)));
+  color: var(--theme-header-text);
+}
+
+.eyebrow,
+.cardEyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.eyebrow { opacity: 0.78; }
+.cardEyebrow { color: var(--theme-text-tertiary); }
+
+.intro h2,
+.recommendationCard h3,
+.progressCard h3 {
+  margin: 0;
+}
+
+.introText {
+  max-width: 62ch;
+  margin: 0.55rem 0 0;
+  line-height: 1.5;
+  opacity: 0.9;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-surface) 18%, transparent);
+  font-size: 0.82rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.statusDot { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: currentColor; }
+.statusgood { color: #bdf2cb; }
+.statusok { color: #ffe1a6; }
+.statuslow { color: #ffc1bd; }
+
+.primaryGrid { grid-template-columns: minmax(0, 1.35fr) minmax(280px, 1fr); }
+.secondaryGrid { grid-template-columns: minmax(0, 1.1fr) minmax(260px, 0.9fr); }
+
+.recommendationCard,
+.sessionCard,
+.readinessCard,
+.progressCard {
+  padding: 1.25rem;
+  border: 1px solid var(--theme-border);
+  border-radius: 12px;
+  background: var(--theme-surface);
+  box-shadow: 0 2px 8px var(--theme-card-shadow);
+}
+
+.recommendationCard { background: var(--theme-panel-info-bg); border-color: var(--theme-panel-info-border); }
+.recommendationCard h3 { color: var(--theme-panel-info-text); text-transform: capitalize; font-size: 1.55rem; }
+.recommendationCard > p:not(.cardEyebrow),
+.progressCard > p:not(.cardEyebrow) { color: var(--theme-text-secondary); line-height: 1.5; }
+
+.sessionMeta,
+.actions { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
+.sessionMeta { margin-top: 1rem; color: var(--theme-text-tertiary); font-size: 0.82rem; font-weight: 700; }
+.actions { margin-top: 1.1rem; }
+.primaryAction,
+.secondaryAction,
+.sessionCard button { border-radius: 7px; padding: 0.55rem 0.8rem; font-weight: 800; cursor: pointer; }
+.primaryAction { border: 1px solid transparent; background: var(--theme-accent); color: white; }
+.secondaryAction,
+.sessionCard button { border: 1px solid var(--theme-border-light); background: var(--theme-surface); color: var(--theme-text-primary); }
+
+.sessionCard ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.55rem; }
+.sessionCard li { display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; padding-bottom: 0.55rem; border-bottom: 1px solid var(--theme-border-light); }
+.sessionCard li div { display: grid; gap: 0.18rem; }
+.sessionCard li strong { color: var(--theme-text-primary); text-transform: capitalize; }
+.sessionCard li span { color: var(--theme-text-secondary); font-size: 0.82rem; text-transform: capitalize; }
+.total { margin-top: 0.8rem; color: var(--theme-text-tertiary); font-size: 0.8rem; font-weight: 700; }
+.empty { color: var(--theme-text-secondary); line-height: 1.5; }
+
+.conversationCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  border: 1px solid var(--theme-border);
+  border-radius: 12px;
+  background: var(--theme-surface);
+}
+
+.conversationCard h3 { margin: 0; color: var(--theme-text-primary); font-size: 1rem; }
+.conversationCard p:not(.cardEyebrow) { margin: 0.35rem 0 0; color: var(--theme-text-secondary); line-height: 1.45; }
+.promptList { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.45rem; }
+.prompt,
+.promptActive { padding: 0.5rem 0.65rem; border-radius: 999px; cursor: pointer; font-size: 0.78rem; font-weight: 800; }
+.prompt { border: 1px solid var(--theme-border-light); background: var(--theme-surface-secondary); color: var(--theme-text-secondary); }
+.promptActive { border: 1px solid var(--theme-accent); background: color-mix(in srgb, var(--theme-accent) 12%, var(--theme-surface)); color: var(--theme-text-primary); }
+
+.coachInputCard { padding: 1rem 1.25rem; border: 1px solid var(--theme-border); border-radius: 12px; background: var(--theme-surface-secondary); }
+.coachInputHeader { display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; margin-bottom: 0.45rem; }
+.coachInputCard label { display: block; color: var(--theme-text-primary); font-size: 0.85rem; font-weight: 800; }
+.coachInputHeader span { color: var(--theme-text-tertiary); font-size: 0.72rem; font-weight: 700; }
+.conversationThread { display: grid; gap: 0.45rem; margin-bottom: 0.7rem; max-height: 180px; overflow-y: auto; }
+.conversationThread p { margin: 0; padding: 0.55rem 0.7rem; border-radius: 8px; font-size: 0.82rem; line-height: 1.4; }
+.conversationThread strong { margin-right: 0.35rem; }
+.athleteMessage { justify-self: end; max-width: 86%; background: var(--theme-surface); color: var(--theme-text-secondary); }
+.coachMessage { justify-self: start; max-width: 92%; border-left: 3px solid var(--theme-accent); background: color-mix(in srgb, var(--theme-accent) 8%, var(--theme-surface)); color: var(--theme-text-secondary); }
+.coachInputRow { display: flex; gap: 0.5rem; }
+.coachInputRow input { flex: 1; min-width: 0; padding: 0.65rem 0.75rem; border: 1px solid var(--theme-border-light); border-radius: 7px; background: var(--theme-surface); color: var(--theme-text-primary); }
+.coachAnswer { margin: 0.75rem 0 0; padding: 0.7rem 0.8rem; border-left: 3px solid var(--theme-accent); color: var(--theme-text-secondary); line-height: 1.45; }
+.pendingChange { display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; margin-top: 0.7rem; padding: 0.65rem 0.75rem; border: 1px solid var(--theme-panel-info-border); border-radius: 8px; background: var(--theme-panel-info-bg); color: var(--theme-panel-info-text); font-size: 0.82rem; font-weight: 700; }
+
+.readinessCard { min-width: 0; }
+.progressCard { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; }
+
+.metricStrip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.7rem;
+  padding: 0.9rem;
+  border: 1px solid var(--theme-border);
+  border-radius: 12px;
+  background: var(--theme-surface-secondary);
+}
+
+.metricStrip div { display: grid; gap: 0.18rem; padding: 0.25rem 0.55rem; border-right: 1px solid var(--theme-border-light); }
+.metricStrip div:last-child { border-right: 0; }
+.metricStrip strong { color: var(--theme-text-primary); font-size: 1.1rem; }
+.metricStrip span { color: var(--theme-text-tertiary); font-size: 0.74rem; font-weight: 700; }
+
+.pulseCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.2rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--theme-border);
+  border-radius: 12px;
+  background: var(--theme-surface);
+}
+
+.pulseCard h3 { margin: 0; color: var(--theme-text-primary); font-size: 1rem; }
+.pulseCard p:not(.cardEyebrow) { margin: 0.35rem 0 0; color: var(--theme-text-secondary); font-size: 0.82rem; }
+.bars { display: flex; align-items: end; justify-content: flex-end; gap: 0.35rem; width: 180px; height: 64px; padding: 0.35rem; border-bottom: 1px solid var(--theme-border-light); }
+.bars span { flex: 1; min-height: 8px; border-radius: 4px 4px 0 0; background: var(--theme-accent); opacity: 0.82; }
+
+@media (max-width: 720px) {
+  .intro,
+  .primaryGrid,
+  .secondaryGrid { grid-template-columns: 1fr; }
+  .status { justify-self: start; }
+  .metricStrip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .metricStrip div:nth-child(2) { border-right: 0; }
+  .pulseCard { align-items: flex-start; flex-direction: column; }
+  .bars { width: 100%; }
+  .conversationCard { grid-template-columns: 1fr; }
+  .promptList { justify-content: flex-start; }
+  .coachInputRow { flex-direction: column; }
+}

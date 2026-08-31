@@ -48,6 +48,14 @@ USDA_API_KEY=your_usda_api_key
 Intervals credentials are connected in-app via the Integrations modal.
 They are stored per browser in local IndexedDB and are not required in `.env.local`.
 
+### Optional conversational coach
+
+The Coach workspace includes a local deterministic fallback and can optionally use a server-side AI provider for free-form responses. For a free private local model, install Ollama, pull `llama3.2:1b`, and set `OLLAMA_MODEL=llama3.2:1b` in `.env.local`. The `/api/coach` provider order is hosted OpenAI-compatible provider, Ollama, then deterministic local guidance. Intervals.icu data and the athlete configuration are compacted on the server request; the local model does not need direct access to Intervals.icu credentials.
+
+### Vercel deployment
+
+This is a standard Next.js deployment. Import the repository into Vercel and use the included `vercel.json` settings. Add the required Intervals variables in Vercel project settings. For AI responses, add `OPENAI_API_KEY`; optionally set `OPENAI_API_URL` and `OPENAI_MODEL` for any reachable OpenAI-compatible provider. Do not set `OLLAMA_BASE_URL` to `127.0.0.1` in Vercel: that address refers to the Vercel function itself, not your computer. If no reachable AI provider is configured, the app uses its deterministic coach without breaking plan creation or sync workflows.
+
 ## Project Structure
 
 ```

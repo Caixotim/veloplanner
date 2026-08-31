@@ -7,6 +7,52 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
+.advancedOptions {
+  margin-top: 1rem;
+  border: 1px solid var(--theme-border);
+  border-radius: 10px;
+  background: var(--theme-surface-secondary);
+
+  summary {
+    padding: 0.85rem 1rem;
+    color: var(--theme-text-primary);
+    cursor: pointer;
+    font-weight: 800;
+  }
+
+  > :not(summary) {
+    margin-left: 0.35rem;
+    margin-right: 0.35rem;
+  }
+}
+
+.descriptionInput {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color, #d9e2ec);
+  border-radius: 0.75rem;
+  background: var(--surface-subtle, #f7fafc);
+}
+
+.descriptionInputRow {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.descriptionInputRow input {
+  flex: 1;
+}
+
+.secondaryButton {
+  white-space: nowrap;
+}
+
+.descriptionFeedback {
+  color: var(--text-secondary, #52606d);
+}
+
 .title {
   font-size: 2rem;
   margin-bottom: 2rem;

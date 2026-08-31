@@ -27,6 +27,7 @@ interface UserProfileFormProps {
   submitLabel?: string
   showPlanInputs?: boolean
   showAthleteDetails?: boolean
+  compactCreation?: boolean
   children?: ReactNode
 }
 
@@ -134,8 +135,11 @@ export function UserProfileForm({
   submitLabel = 'Create Training Plan',
   showPlanInputs = true,
   showAthleteDetails = true,
+  compactCreation = false,
 }: UserProfileFormProps) {
   const [profile, setProfile] = useState<Partial<UserProfile>>(() => mergeWithDefaultProfile(initialProfile))
+  const [planDescription, setPlanDescription] = useState('')
+  const [planDescriptionFeedback, setPlanDescriptionFeedback] = useState<string | null>(null)
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -168,6 +172,55 @@ export function UserProfileForm({
     setProfile((prev) => ({ ...prev, plannedEvents: updated }))
   }
 
+  const applyPlanDescription = () => {
+    const normalized = planDescription.trim().toLowerCase()
+    if (!normalized) return
+
+    const goal: TrainingGoal = normalized.includes('climb') || normalized.includes('hill')
+      ? 'climbing_sustainability'
+      : normalized.includes('endurance') || normalized.includes('long ride') || normalized.includes('gran fondo')
+        ? 'endurance'
+        : normalized.includes('recover') || normalized.includes('rest')
+          ? 'recovery'
+          : 'ftp_increase'
+    const weeksMatch = normalized.match(/(\d+)\s*weeks?/)
+    const requestedWeeks = weeksMatch ? Math.max(4, Math.min(30, Number(weeksMatch[1]))) : undefined
+    const startDateMatch = normalized.match(/\b(20\d{2}-\d{2}-\d{2})\b/)
+    const ageMatch = normalized.match(/\b(\d{2})\s*(?:years? old|yo)\b/)
+    const weightMatch = normalized.match(/\b(\d+(?:\.\d+)?)\s*kg\b/)
+    const ftpMatch = normalized.match(/\b(\d{2,3})\s*w(?:atts?)?\b/)
+    const weekdayPattern = /(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*(?:for|:)?\s*(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|h)\b/g
+    const weekdayHours = { ...(profile.availableTime || {}) }
+    let availabilityCount = 0
+    for (const match of normalized.matchAll(weekdayPattern)) {
+      const day = match[1] as keyof UserProfile['availableTime']
+      weekdayHours[day] = Number(match[2])
+      availabilityCount += 1
+    }
+    const nextMonday = new Date()
+    nextMonday.setDate(nextMonday.getDate() + ((8 - nextMonday.getDay()) % 7 || 7))
+    const inferredStartDate = startDateMatch?.[1] || `${nextMonday.getFullYear()}-${String(nextMonday.getMonth() + 1).padStart(2, '0')}-${String(nextMonday.getDate()).padStart(2, '0')}`
+
+    setProfile((current) => ({
+      ...current,
+      goal,
+      ...(requestedWeeks ? { desiredPlanWeeks: requestedWeeks } : {}),
+      planStartDate: inferredStartDate,
+      ...(ageMatch ? { age: Number(ageMatch[1]) } : {}),
+      ...(weightMatch ? { weight: Number(weightMatch[1]) } : {}),
+      ...(ftpMatch ? { ftp: Number(ftpMatch[1]) } : {}),
+      ...(availabilityCount ? { availableTime: weekdayHours } : {}),
+    }))
+    const details = [
+      requestedWeeks && `${requestedWeeks} weeks`,
+      ageMatch && `${ageMatch[1]} years old`,
+      weightMatch && `${weightMatch[1]} kg`,
+      ftpMatch && `${ftpMatch[1]}W FTP`,
+      availabilityCount && `${availabilityCount} availability entries`,
+    ].filter(Boolean).join(', ')
+    setPlanDescriptionFeedback(`Understood: ${goal.replace(/_/g, ' ')}${details ? ` (${details})` : ''}, starting ${inferredStartDate}. Review the fields below before creating the plan.`)
+  }
+
   return (
     <form onSubmit={handleSubmit} className={styles.form}>
       <h2 className={styles.title}>{title}</h2>
@@ -176,6 +229,22 @@ export function UserProfileForm({
       <div className={styles.section}>
         <h3>Plan Inputs</h3>
         <p className={styles.hint}>These settings define what gets scheduled and when it starts.</p>
+
+        <div className={styles.descriptionInput}>
+          <label htmlFor="plan-description">Describe the plan you want</label>
+          <div className={styles.descriptionInputRow}>
+            <input
+              id="plan-description"
+              type="text"
+              value={planDescription}
+              onChange={(event) => setPlanDescription(event.target.value)}
+              placeholder="e.g. Build endurance for 12 weeks starting 2026-09-07"
+              disabled={loading}
+            />
+            <button type="button" className={styles.secondaryButton} onClick={applyPlanDescription} disabled={loading || !planDescription.trim()}>Use description</button>
+          </div>
+          {planDescriptionFeedback && <small className={styles.descriptionFeedback}>{planDescriptionFeedback}</small>}
+        </div>
 
         <div className={styles.grid}>
           <div className={styles.group}>
@@ -237,7 +306,7 @@ export function UserProfileForm({
             />
           </div>
 
-          <div className={styles.group}>
+          {!compactCreation && <div className={styles.group}>
             <label htmlFor="intensityDistribution">Intensity Distribution</label>
             <select
               id="intensityDistribution"
@@ -254,9 +323,9 @@ export function UserProfileForm({
             <small className={styles.goalHint}>
               {INTENSITY_DISTRIBUTION_OPTIONS.find((option) => option.id === (profile.intensityDistribution || 'conservative'))?.description}
             </small>
-          </div>
+          </div>}
 
-          {profile.goal === 'ftp_increase' && (
+          {!compactCreation && profile.goal === 'ftp_increase' && (
             <div className={styles.group}>
               <label htmlFor="ftpIncreaseTargetWatts">Target FTP Increase (watts)</label>
               <input
@@ -279,7 +348,7 @@ export function UserProfileForm({
             </div>
           )}
 
-          <div className={styles.groupWide}>
+          {!compactCreation && <div className={styles.groupWide}>
             <label>Target Events (A/B/C Priority)</label>
             <div className={styles.eventsGrid}>
               {[0, 1, 2].map((index) => {
@@ -322,10 +391,13 @@ export function UserProfileForm({
               })}
             </div>
             <small className={styles.goalHint}>Planner uses A/B/C event dates to shape taper and key-session density near race weeks.</small>
-          </div>
+          </div>}
         </div>
       </div>
       )}
+
+      <details className={styles.advancedOptions}>
+        <summary>Fine-tune coaching (optional)</summary>
 
       {(showPlanInputs || showAthleteDetails) && (
         <div className={styles.section}>
@@ -640,6 +712,8 @@ export function UserProfileForm({
       </div>
       </>
       )}
+
+      </details>
 
       <button type="submit" className={styles.submitButton} disabled={loading}>
         {loading ? 'Saving...' : submitLabel}

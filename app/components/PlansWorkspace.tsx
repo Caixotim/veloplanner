@@ -38,7 +38,7 @@ import TrainingCalendar from './TrainingCalendar'
 import { BodyMetricsLog } from './BodyMetricsLog'
 import PerformanceCharts from './PerformanceCharts'
 import { SeasonPlanner } from './SeasonPlanner'
-import { DailyNutritionGuide } from './DailyNutritionGuide'
+import CoachToday from './CoachToday'
 import {
   CalendarIcon,
   ChartIcon,
@@ -123,7 +123,7 @@ export default function PlansWorkspace() {
   const [showBackupPlans, setShowBackupPlans] = useState(false)
   const [mealPlanExpanded, setMealPlanExpanded] = useState(false)
   type WorkspaceTab = 'today' | 'calendar' | 'season' | 'summary' | 'analytics' | 'exports'
-  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>('calendar')
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>('today')
   const [calendarAutoScrollSignal, setCalendarAutoScrollSignal] = useState(0)
   const [activeCoachActionKey, setActiveCoachActionKey] = useState<string | null>(null)
   const [coachActionPulseToken, setCoachActionPulseToken] = useState(0)
@@ -226,8 +226,16 @@ export default function PlansWorkspace() {
   useEffect(() => {
     if (activeWorkspaceTab === 'calendar') {
       setCalendarAutoScrollSignal((current) => current + 1)
+
+      if (activeCoachActionKey) {
+        const frameId = window.requestAnimationFrame(() => {
+          document.getElementById('training-calendar')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        })
+
+        return () => window.cancelAnimationFrame(frameId)
+      }
     }
-  }, [activeWorkspaceTab])
+  }, [activeCoachActionKey, activeWorkspaceTab])
 
   // Load completions when active plan changes
   useEffect(() => {
@@ -441,13 +449,7 @@ export default function PlansWorkspace() {
     }
 
     setCoachActionPulseToken((current) => current + 1)
-
-    if (typeof window !== 'undefined') {
-      const calendarSection = document.getElementById('training-calendar')
-      if (calendarSection) {
-        calendarSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      }
-    }
+    setActiveWorkspaceTab('calendar')
   }, [])
 
   const calendarFatigueRiskByDate = useMemo(() => {
@@ -1560,6 +1562,45 @@ export default function PlansWorkspace() {
     [currentPlan, plan, trackEvent]
   )
 
+  const handleApplyCoachChange = useCallback(async (weekNumber: number, dayOfWeek: number, updatedSession: TrainingSession) => {
+    if (!currentPlan) return
+
+    const updatedDate = getSessionDate(currentPlan.startDate, weekNumber, dayOfWeek)
+    const normalizedSession: TrainingSession = {
+      ...updatedSession,
+      dayOfWeek,
+      date: updatedDate,
+      localUpdatedAt: new Date().toISOString(),
+    }
+    const nextPlan: TrainingPlan = {
+      ...currentPlan,
+      weeks: currentPlan.weeks.map((week) => {
+        if (week.weekNumber !== weekNumber) return week
+        const nextSessions = upsertSessionByDay(week.sessions, dayOfWeek, normalizedSession)
+        return { ...week, sessions: nextSessions, totalHours: nextSessions.reduce((sum, session) => sum + session.duration / 60, 0) }
+      }),
+    }
+
+    setLoading(true)
+    try {
+      const syncResult = await syncPlanWithIntervals('replace', nextPlan)
+      const syncedPlan = syncResult.success
+        ? { ...nextPlan, externalPlanId: syncResult.externalPlanId || nextPlan.externalPlanId || nextPlan.id, intervalsSync: { syncedAt: new Date().toISOString() } }
+        : nextPlan
+      await storage.updatePlan(syncedPlan.id, syncedPlan)
+      setPlan(syncedPlan)
+      setCurrentPlan(syncedPlan)
+      setPlanDiff(null)
+      setChangedSessions(new Set())
+      setSyncMessage(syncResult.success ? 'Coach change applied and synced' : 'Coach change applied locally; sync needs attention')
+      await refreshStoredPlans()
+    } catch (error) {
+      setSyncMessage(`Coach change sync failed: ${toErrorMessage(error)}`)
+    } finally {
+      setLoading(false)
+    }
+  }, [currentPlan, refreshStoredPlans, syncPlanWithIntervals])
+
   const handleSessionMove = useCallback(
     (
       source: { weekNumber: number; dayOfWeek: number },
@@ -2007,7 +2048,7 @@ export default function PlansWorkspace() {
               calendar: 'Calendar',
               season: 'Season',
               summary: 'Summary',
-              analytics: 'Analytics',
+              analytics: 'Progress',
               exports: 'Exports',
             }
             return (
@@ -2032,10 +2073,25 @@ export default function PlansWorkspace() {
           })}
         </nav>
 
-        {/* Today tab — daily nutrition guide */}
+        {/* Today tab — coach-first daily workflow */}
         {activeWorkspaceTab === 'today' && (
           <div className={styles.tabContent}>
-            <DailyNutritionGuide plan={currentPlan} meals={currentPlan.mealSuggestions} />
+            <CoachToday
+              plan={currentPlan}
+              userProfile={userProfile ?? undefined}
+              readiness={todayReadiness}
+              onSaveReadiness={async (entry) => {
+                await storage.saveDailyReadiness(entry)
+                setTodayReadiness(entry)
+              }}
+              onOpenCalendar={() => setActiveWorkspaceTab('calendar')}
+              onOpenAnalytics={() => setActiveWorkspaceTab('analytics')}
+              onLogSession={(weekNumber, session) => setCompletionModalSession({ session, weekNumber })}
+              onEditSession={handleEditSession}
+              onApplyCoachChange={handleApplyCoachChange}
+              recentRides={intervalsRideData}
+              completions={planCompletions}
+            />
           </div>
         )}
 
@@ -2291,7 +2347,7 @@ export default function PlansWorkspace() {
         <p>Create personalized training plans integrated with Intervals.icu ride data.</p>
         <div className={styles.heroActions}>
           <Link className={styles.syncBtn} href="/profile">
-            Open Athlete Profile
+            Set up athlete details
           </Link>
         </div>
       </div>
@@ -2309,7 +2365,7 @@ export default function PlansWorkspace() {
         </div>
         <div className={styles.feature}>
           <span className={styles.icon}>Insights</span>
-          <h3>Analytics</h3>
+          <h3>Progress</h3>
           <p>Track edits, sync behavior, and exported artifacts through the dashboard.</p>
         </div>
       </div>
@@ -2319,10 +2375,11 @@ export default function PlansWorkspace() {
         onSubmit={handleCreatePlan}
         loading={loading}
         initialProfile={buildPlanCreationDraft(userProfile)}
-        title="Create New Plan"
-        submitLabel="Create Training Plan"
+        title="Start Your Coaching Plan"
+        submitLabel="Start Coaching"
         showPlanInputs={true}
         showAthleteDetails={false}
+        compactCreation={true}
       />
 
       {storedPlans.length === 0 && (
