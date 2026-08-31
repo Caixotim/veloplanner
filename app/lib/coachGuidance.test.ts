@@ -63,6 +63,13 @@ describe('buildCoachGuidance', () => {
     expect(result?.shouldOpenCalendar).toBe(false)
   })
 
+  it('reveals nutrition only when requested', () => {
+    const result = buildCoachGuidance({ question: 'What should I eat after the ride?', plan, session })
+
+    expect(result?.shouldShowNutrition).toBe(true)
+    expect(result?.shouldShowMetrics).toBeUndefined()
+  })
+
   it('explains the purpose of a session', () => {
     const result = buildCoachGuidance({ question: 'Why this workout?', plan, session })
 

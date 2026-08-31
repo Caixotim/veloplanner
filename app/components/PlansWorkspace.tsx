@@ -39,6 +39,7 @@ import { BodyMetricsLog } from './BodyMetricsLog'
 import PerformanceCharts from './PerformanceCharts'
 import { SeasonPlanner } from './SeasonPlanner'
 import CoachToday from './CoachToday'
+import { DailyNutritionGuide } from './DailyNutritionGuide'
 import {
   CalendarIcon,
   ChartIcon,
@@ -124,6 +125,7 @@ export default function PlansWorkspace() {
   const [mealPlanExpanded, setMealPlanExpanded] = useState(false)
   type WorkspaceTab = 'today' | 'calendar' | 'season' | 'summary' | 'analytics' | 'exports'
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>('today')
+  const [showNutrition, setShowNutrition] = useState(false)
   const [calendarAutoScrollSignal, setCalendarAutoScrollSignal] = useState(0)
   const [activeCoachActionKey, setActiveCoachActionKey] = useState<string | null>(null)
   const [coachActionPulseToken, setCoachActionPulseToken] = useState(0)
@@ -2086,12 +2088,14 @@ export default function PlansWorkspace() {
               }}
               onOpenCalendar={() => setActiveWorkspaceTab('calendar')}
               onOpenAnalytics={() => setActiveWorkspaceTab('analytics')}
+              onShowNutrition={() => setShowNutrition(true)}
               onLogSession={(weekNumber, session) => setCompletionModalSession({ session, weekNumber })}
               onEditSession={handleEditSession}
               onApplyCoachChange={handleApplyCoachChange}
               recentRides={intervalsRideData}
               completions={planCompletions}
             />
+            {showNutrition && <DailyNutritionGuide plan={currentPlan} meals={currentPlan.mealSuggestions} />}
           </div>
         )}
 

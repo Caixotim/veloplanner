@@ -9,6 +9,7 @@ export type CoachGuidance = {
   suggestedSessionType?: SessionType
   shouldShowMetrics?: boolean
   shouldShowToday?: boolean
+  shouldShowNutrition?: boolean
 }
 
 type CoachGuidanceInput = {
@@ -91,6 +92,15 @@ export function buildCoachGuidance({ question, plan, session, recentRides = [] }
       shouldOpenEditor: false,
       shouldOpenCalendar: false,
       shouldShowMetrics: true,
+    }
+  }
+
+  if (/(nutrition|meal|fuel|eat|carb|protein)/.test(normalized)) {
+    return {
+      answer: 'Here are today’s nutrition suggestions. Ask me for pre-ride fuel, recovery food, or a full meal plan if you want something more specific.',
+      shouldOpenEditor: false,
+      shouldOpenCalendar: false,
+      shouldShowNutrition: true,
     }
   }
 

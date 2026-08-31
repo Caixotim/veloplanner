@@ -13,6 +13,7 @@ type CoachTodayProps = {
   onSaveReadiness: (entry: DailyReadinessEntry) => Promise<void>
   onOpenCalendar: () => void
   onOpenAnalytics: () => void
+  onShowNutrition: () => void
   onLogSession: (weekNumber: number, session: TrainingSession) => void
   onEditSession: (weekNumber: number, dayOfWeek: number, session: TrainingSession) => void
   onApplyCoachChange: (weekNumber: number, dayOfWeek: number, session: TrainingSession) => Promise<void>
@@ -38,6 +39,7 @@ export default function CoachToday({
   onSaveReadiness,
   onOpenCalendar,
   onOpenAnalytics,
+  onShowNutrition,
   onLogSession,
   onEditSession,
   onApplyCoachChange,
@@ -97,6 +99,7 @@ export default function CoachToday({
     if (!guidance) return
     if (guidance.shouldShowMetrics) setShowMetrics(true)
     if (guidance.shouldShowToday) setShowTodayDetails(true)
+    if (guidance.shouldShowNutrition) onShowNutrition()
 
     let answer = guidance.answer
     setCoachLoading(true)
