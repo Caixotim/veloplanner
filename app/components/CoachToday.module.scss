@@ -1,6 +1,9 @@
 .wrapper {
   display: grid;
   gap: 1rem;
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
 }
 
 .intro,
@@ -17,6 +20,7 @@
   border-radius: 14px;
   background: linear-gradient(135deg, var(--theme-header-bg), color-mix(in srgb, var(--theme-header-bg) 72%, var(--theme-accent)));
   color: var(--theme-header-text);
+  min-height: 150px;
 }
 
 .eyebrow,
@@ -36,6 +40,8 @@
 .progressCard h3 {
   margin: 0;
 }
+
+.intro h2 { font-size: clamp(1.6rem, 3vw, 2.35rem); }
 
 .introText {
   max-width: 62ch;
@@ -87,7 +93,7 @@
 .primaryAction,
 .secondaryAction,
 .sessionCard button { border-radius: 7px; padding: 0.55rem 0.8rem; font-weight: 800; cursor: pointer; }
-.primaryAction { border: 1px solid transparent; background: var(--theme-accent); color: white; }
+.primaryAction { min-width: 7rem; border: 1px solid transparent; background: var(--theme-accent); color: white; }
 .secondaryAction,
 .sessionCard button { border: 1px solid var(--theme-border-light); background: var(--theme-surface); color: var(--theme-text-primary); }
 
@@ -118,19 +124,50 @@
 .prompt { border: 1px solid var(--theme-border-light); background: var(--theme-surface-secondary); color: var(--theme-text-secondary); }
 .promptActive { border: 1px solid var(--theme-accent); background: color-mix(in srgb, var(--theme-accent) 12%, var(--theme-surface)); color: var(--theme-text-primary); }
 
-.coachInputCard { padding: 1rem 1.25rem; border: 1px solid var(--theme-border); border-radius: 12px; background: var(--theme-surface-secondary); }
-.coachInputHeader { display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; margin-bottom: 0.45rem; }
-.coachInputCard label { display: block; color: var(--theme-text-primary); font-size: 0.85rem; font-weight: 800; }
-.coachInputHeader span { color: var(--theme-text-tertiary); font-size: 0.72rem; font-weight: 700; }
-.conversationThread { display: grid; gap: 0.45rem; margin-bottom: 0.7rem; max-height: 180px; overflow-y: auto; }
-.conversationThread p { margin: 0; padding: 0.55rem 0.7rem; border-radius: 8px; font-size: 0.82rem; line-height: 1.4; }
-.conversationThread strong { margin-right: 0.35rem; }
-.athleteMessage { justify-self: end; max-width: 86%; background: var(--theme-surface); color: var(--theme-text-secondary); }
-.coachMessage { justify-self: start; max-width: 92%; border-left: 3px solid var(--theme-accent); background: color-mix(in srgb, var(--theme-accent) 8%, var(--theme-surface)); color: var(--theme-text-secondary); }
-.coachInputRow { display: flex; gap: 0.5rem; }
-.coachInputRow input { flex: 1; min-width: 0; padding: 0.65rem 0.75rem; border: 1px solid var(--theme-border-light); border-radius: 7px; background: var(--theme-surface); color: var(--theme-text-primary); }
+.coachInputCard { padding: 1.5rem 1.75rem; border: 1px solid var(--theme-border); border-radius: 20px; background: var(--theme-surface-secondary); }
+.coachInputHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.7rem; margin-bottom: 0.75rem; }
+.coachInputCard label { display: block; color: var(--theme-text-primary); font-size: 1.15rem; font-weight: 800; }
+.coachInputHeader p { margin: 0.25rem 0 0; color: var(--theme-text-secondary); font-size: 0.8rem; line-height: 1.4; }
+.helpHint { display: grid; place-items: center; flex: 0 0 auto; width: 1.5rem; height: 1.5rem; border: 1px solid var(--theme-border-light); border-radius: 50%; color: var(--theme-text-tertiary); font-size: 0.78rem; font-weight: 800; cursor: help; }
+.conversationThread { display: grid; gap: 0.95rem; min-height: min(52vh, 38rem); max-height: min(52rem, 66vh); overflow-y: auto; margin: 0.5rem 0 1.25rem; padding: 0.5rem 0.6rem 0.8rem; scroll-behavior: smooth; scrollbar-gutter: stable; }
+.conversationThread > div { margin: 0; padding: 0.85rem 1rem; border-radius: 14px; font-size: 0.98rem; line-height: 1.55; box-shadow: 0 1px 2px var(--theme-card-shadow); }
+.messageAuthor { display: block; margin-bottom: 0.3rem; font-size: 0.75rem; letter-spacing: 0.02em; }
+.messageText { overflow-wrap: anywhere; }
+.richText { display: block; }
+.richText p { margin: 0 0 0.55rem; padding: 0; }
+.richText p:last-child { margin-bottom: 0; }
+.richText ul,
+.richText ol { display: grid; gap: 0.3rem; margin: 0.35rem 0 0.2rem 1.2rem; padding: 0; }
+.richText li { padding-left: 0.15rem; }
+.richText code { padding: 0.08rem 0.25rem; border-radius: 4px; background: color-mix(in srgb, var(--theme-accent) 12%, transparent); font-size: 0.9em; }
+.athleteMessage { justify-self: end; max-width: min(78%, 54rem); background: var(--theme-surface); color: var(--theme-text-secondary); border-bottom-right-radius: 4px !important; }
+.coachMessage { justify-self: start; max-width: min(88%, 62rem); border-left: 3px solid var(--theme-accent); background: color-mix(in srgb, var(--theme-accent) 8%, var(--theme-surface)); color: var(--theme-text-secondary); border-bottom-left-radius: 4px !important; }
+.typingMessage { display: flex; align-items: center; gap: 0.55rem; color: var(--theme-text-tertiary); font-size: 0.85rem !important; }
+.typingDots { display: inline-flex; gap: 0.2rem; }
+.typingDots i { width: 0.35rem; height: 0.35rem; border-radius: 50%; background: var(--theme-accent); animation: coachTyping 1.2s infinite ease-in-out; }
+.typingDots i:nth-child(2) { animation-delay: 0.15s; }
+.typingDots i:nth-child(3) { animation-delay: 0.3s; }
+.coachInputRow { display: flex; gap: 0.75rem; align-items: stretch; }
+.coachInputRow textarea { flex: 1; min-width: 0; min-height: 5.5rem; resize: vertical; padding: 1rem 1.1rem; border: 1px solid var(--theme-border-light); border-radius: 12px; background: var(--theme-surface); color: var(--theme-text-primary); font: inherit; font-size: 1.08rem; line-height: 1.5; }
+.coachInputCard { position: sticky; bottom: 0.75rem; z-index: 2; box-shadow: 0 8px 24px var(--theme-card-shadow); }
+.coachInputCard > .promptList { justify-content: flex-start; margin-top: 1.5rem; margin-bottom: 1.1rem; padding-top: 1.25rem; border-top: 1px solid var(--theme-border-light); }
 .coachAnswer { margin: 0.75rem 0 0; padding: 0.7rem 0.8rem; border-left: 3px solid var(--theme-accent); color: var(--theme-text-secondary); line-height: 1.45; }
 .pendingChange { display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; margin-top: 0.7rem; padding: 0.65rem 0.75rem; border: 1px solid var(--theme-panel-info-border); border-radius: 8px; background: var(--theme-panel-info-bg); color: var(--theme-panel-info-text); font-size: 0.82rem; font-weight: 700; }
+
+.proposalCard { margin-top: 0.8rem; padding: 1rem; border: 1px solid var(--theme-panel-info-border); border-radius: 14px; background: var(--theme-panel-info-bg); color: var(--theme-panel-info-text); }
+.proposalHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
+.proposalHeader h2,
+.proposalHeader h3 { margin: 0; color: var(--theme-panel-info-text); text-transform: capitalize; }
+.proposalIcon { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; background: color-mix(in srgb, var(--theme-accent) 18%, transparent); color: var(--theme-accent); font-size: 1.15rem; font-weight: 900; }
+.proposalDetails { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.55rem; margin-top: 0.9rem; }
+.proposalDetails div { display: grid; gap: 0.18rem; padding: 0.6rem; border-radius: 9px; background: color-mix(in srgb, var(--theme-surface) 65%, transparent); }
+.proposalDetails span { color: var(--theme-text-tertiary); font-size: 0.68rem; font-weight: 800; text-transform: uppercase; }
+.proposalDetails strong { color: var(--theme-text-primary); font-size: 0.82rem; text-transform: capitalize; }
+.proposalDateInput { width: 100%; min-width: 0; border: 1px solid var(--theme-border-light); border-radius: 6px; padding: 0.25rem; background: var(--theme-surface); color: var(--theme-text-primary); font: inherit; font-size: 0.82rem; font-weight: 700; }
+.proposalPrompt { margin: 0.85rem 0 0; color: var(--theme-text-secondary); font-size: 0.82rem; line-height: 1.45; }
+.proposalMeta { margin: 0.25rem 0 0; color: var(--theme-text-secondary); font-size: 0.82rem; }
+.proposalActions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.85rem; }
+.dismissAction { border: 0; padding: 0.55rem 0.35rem; background: transparent; color: var(--theme-text-tertiary); font-weight: 800; cursor: pointer; }
 
 .readinessCard { min-width: 0; }
 .progressCard { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; }
@@ -167,6 +204,11 @@
 .bars span { flex: 1; min-height: 8px; border-radius: 4px 4px 0 0; background: var(--theme-accent); opacity: 0.82; }
 
 @media (max-width: 720px) {
+  .wrapper { gap: 0.75rem; max-width: none; padding: 0; }
+  .intro { padding: 1.15rem; border-radius: 18px; min-height: 120px; }
+  .intro h2 { font-size: 1.5rem; }
+  .conversationCard { padding: 0.85rem; border-radius: 16px; }
+  .coachInputCard { padding: 1.25rem 1rem; border-radius: 20px; bottom: 0.35rem; }
   .intro,
   .primaryGrid,
   .secondaryGrid { grid-template-columns: 1fr; }
@@ -178,4 +220,22 @@
   .conversationCard { grid-template-columns: 1fr; }
   .promptList { justify-content: flex-start; }
   .coachInputRow { flex-direction: column; }
+  .coachInputRow .primaryAction { min-height: 2.9rem; }
+  .conversationThread { min-height: min(58vh, 34rem); max-height: 62vh; gap: 1rem; padding-inline: 0.15rem; }
+  .conversationThread > div { padding: 1rem 1.05rem; font-size: 1rem; }
+  .coachInputCard > .promptList { margin-top: 1.75rem; margin-bottom: 1.25rem; padding-top: 1.35rem; gap: 0.7rem; }
+  .prompt, .promptActive { min-height: 2.75rem; padding-inline: 0.9rem; font-size: 0.86rem; }
+  .coachInputRow textarea { min-height: 7rem; padding: 1rem; font-size: 1.08rem; }
+  .coachInputRow .primaryAction { min-width: 100%; min-height: 3.5rem; font-size: 1rem; }
+  .proposalDetails { grid-template-columns: 1fr; }
+}
+
+@keyframes coachTyping {
+  0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-2px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conversationThread { scroll-behavior: auto; }
+  .typingDots i { animation: none; }
 }

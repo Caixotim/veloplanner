@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import styles from './DailyNutritionGuide.module.scss'
 import type { MealSuggestion, SessionType, TrainingPlan, TrainingSession } from '@/app/lib/types'
 import { PrinterIcon } from './icons/AppIcons'
+import { useLocale } from '@/app/lib/i18n'
 
 interface DailyNutritionGuideProps {
   plan: TrainingPlan
@@ -241,6 +242,7 @@ function buildNutritionWindows(
 }
 
 export function DailyNutritionGuide({ plan, meals }: DailyNutritionGuideProps) {
+  const { translateText } = useLocale()
   const today = new Date()
   const tomorrow = new Date(today)
   tomorrow.setDate(today.getDate() + 1)
@@ -456,7 +458,7 @@ export function DailyNutritionGuide({ plan, meals }: DailyNutritionGuideProps) {
           <section class="layout">
             <aside>
               <article class="asideCard">
-                <h2>Nutrition</h2>
+                <h2>{translateText('Nutrition')}</h2>
                 <div class="macros">
                   <span class="chip">${meal.caloriesEstimate} kcal</span>
                   <span class="chip">Carbs ${meal.carbs}g</span>
@@ -466,19 +468,19 @@ export function DailyNutritionGuide({ plan, meals }: DailyNutritionGuideProps) {
               </article>
 
               <article class="asideCard">
-                <h2>Timing Tip</h2>
+                <h2>{translateText('Timing Tip')}</h2>
                 <p class="timing">${escapedTip}</p>
               </article>
             </aside>
 
             <main>
               <article class="mainCard">
-                <h2>Ingredients</h2>
+                <h2>{translateText('Ingredients')}</h2>
                 <ul class="ingredients">${escapedIngredients}</ul>
               </article>
 
               <article class="mainCard">
-                <h2>Method</h2>
+                <h2>{translateText('Method')}</h2>
                 <ol class="steps">${escapedMethodSteps}</ol>
               </article>
             </main>
@@ -498,7 +500,7 @@ export function DailyNutritionGuide({ plan, meals }: DailyNutritionGuideProps) {
     <div className={styles.container}>
       <div className={styles.header}>
         <div>
-          <h2 className={styles.title}>What to Eat Today</h2>
+          <h2 className={styles.title}>{translateText('What to Eat Today')}</h2>
           <p className={styles.dateLabel}>{dateLabel}</p>
         </div>
       </div>
@@ -519,7 +521,7 @@ export function DailyNutritionGuide({ plan, meals }: DailyNutritionGuideProps) {
               <span className={styles.sessionIcon}>🛌</span>
               <div>
                 <strong>Rest day</strong>
-                <p>No training scheduled</p>
+                <p>{translateText('No training scheduled')}</p>
               </div>
             </>
           ) : todaySession ? (
@@ -587,7 +589,7 @@ export function DailyNutritionGuide({ plan, meals }: DailyNutritionGuideProps) {
       {/* Suggested meals from plan */}
       {relevantMeals.length > 0 && (
         <section className={styles.suggestedMeals}>
-          <h3 className={styles.suggestedMealsTitle}>Suggested Meals from Your Plan</h3>
+          <h3 className={styles.suggestedMealsTitle}>{translateText('Suggested Meals from Your Plan')}</h3>
           <div className={styles.mealsRow}>
             {relevantMeals.map((meal) => {
               return (

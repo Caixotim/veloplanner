@@ -6,6 +6,7 @@ import type { DailyReadinessEntry, EventPriority, SessionCompletion, TrainingPla
 import type { RideMatchMap } from '@/app/lib/rideMatcher'
 import { estimateTSSFromRide } from '@/app/lib/rideMatcher'
 import styles from './TrainingCalendar.module.scss'
+import { useLocale } from '@/app/lib/i18n'
 
 /**
  * Props for TrainingCalendar component
@@ -39,6 +40,7 @@ interface TrainingCalendarProps {
   >
   plannedEvents?: UserProfile['plannedEvents']
   autoScrollToTodaySignal?: number
+  onVisibleRangeChange?: (oldest: string, newest: string) => void
 }
 
 const WEEK_LENGTH_DAYS = 7
@@ -55,6 +57,7 @@ const SESSION_TYPE_ICONS: Record<string, string> = {
 }
 
 type SessionModality = 'Bike' | 'Rower' | 'Strength'
+type CalendarView = 'week' | 'threeDays' | 'day'
 
 function getSessionModality(session: TrainingSession): SessionModality {
   if (session.type === 'strength') {
@@ -119,20 +122,6 @@ function getSessionSubtype(session: TrainingSession): string | null {
   }
 
   return null
-}
-
-function getWeekColumns(): Array<{ dayOfWeek: number; weekdayLabel: string }> {
-  const mondayReference = new Date(2024, 0, 1)
-  return Array.from({ length: WEEK_LENGTH_DAYS }, (_, index) => {
-    const dayOfWeek = index + 1
-    const date = new Date(mondayReference)
-    date.setDate(mondayReference.getDate() + index)
-
-    return {
-      dayOfWeek,
-      weekdayLabel: date.toLocaleDateString(undefined, { weekday: 'short' }),
-    }
-  })
 }
 
 type CalendarWeekRow = {
@@ -326,8 +315,9 @@ export default function TrainingCalendar({
   fatigueDetailsByDate = {},
   plannedEvents = [],
   autoScrollToTodaySignal = 0,
+  onVisibleRangeChange,
 }: TrainingCalendarProps) {
-  const weekColumns = getWeekColumns()
+  const { t, translateText } = useLocale()
   const calendarWeekRows = buildCalendarWeekRows(plan)
   const todayDateKey = formatDateKey(new Date())
   const calendarScrollRef = useRef<HTMLDivElement | null>(null)
@@ -343,7 +333,31 @@ export default function TrainingCalendar({
   const [editingIntensityKey, setEditingIntensityKey] = useState<string | null>(null)
   const [isHighlightPulseActive, setIsHighlightPulseActive] = useState(false)
   const [expandedFatigueSessionKey, setExpandedFatigueSessionKey] = useState<string | null>(null)
+  const [calendarView, setCalendarView] = useState<CalendarView>('week')
+  const lastRequestedRangeRef = useRef<string | null>(null)
+  const [periodStart, setPeriodStart] = useState(() => normalizeDateOnly(new Date()))
   const hasTodayInCalendar = calendarWeekRows.some((week) => week.cells.some((cell) => cell.dateKey === todayDateKey))
+
+  const periodDays = calendarView === 'week' ? WEEK_LENGTH_DAYS : calendarView === 'threeDays' ? 3 : 1
+  const periodAnchor = calendarView === 'week' ? startOfIsoWeek(periodStart) : periodStart
+  const periodEnd = new Date(periodAnchor)
+  periodEnd.setDate(periodAnchor.getDate() + periodDays - 1)
+  const visibleCalendarRows = calendarWeekRows
+    .map((week) => ({
+      ...week,
+      cells: week.cells.filter((cell) => cell.date >= periodAnchor && cell.date <= periodEnd),
+    }))
+    .filter((week) => week.cells.length > 0)
+  const visibleCalendarCells = visibleCalendarRows.flatMap((week) => week.cells)
+  const visibleOldest = formatDateKey(periodAnchor)
+  const visibleNewest = formatDateKey(periodEnd)
+
+  useEffect(() => {
+    const rangeKey = `${visibleOldest}:${visibleNewest}`
+    if (lastRequestedRangeRef.current === rangeKey) return
+    lastRequestedRangeRef.current = rangeKey
+    onVisibleRangeChange?.(visibleOldest, visibleNewest)
+  }, [onVisibleRangeChange, visibleNewest, visibleOldest])
 
   useEffect(() => {
     if (!editable) {
@@ -397,6 +411,20 @@ export default function TrainingCalendar({
 
     lastAutoScrollKeyRef.current = autoScrollKey
   }, [autoScrollToTodaySignal, hasTodayInCalendar, plan.id, todayDateKey])
+
+  useEffect(() => {
+    setPeriodStart(normalizeDateOnly(new Date()))
+  }, [plan.id])
+
+  const movePeriod = (direction: -1 | 1) => {
+    setPeriodStart((current) => {
+      const next = new Date(current)
+      next.setDate(current.getDate() + direction * periodDays)
+      return next
+    })
+  }
+
+  const resetToToday = () => setPeriodStart(normalizeDateOnly(new Date()))
 
   /**
    * Handle drag start
@@ -552,22 +580,39 @@ export default function TrainingCalendar({
 
   return (
     <div className={styles.calendarContainer}>
-      {editable && <p className={styles.calendarHint}>Drag to reschedule • Double-click duration/intensity for quick edits • Use ✏️ for full editor</p>}
+      {editable && <p className={styles.calendarHint}>{translateText('Drag to reschedule • Double-click duration/intensity for quick edits • Use ✏️ for full editor')}</p>}
+
+      <div className={styles.periodToolbar} aria-label={translateText('Calendar period navigation')}>
+        <div className={styles.periodChoices} role="group" aria-label={translateText('Calendar view')}>
+          <button type="button" className={calendarView === 'week' ? styles.periodChoiceActive : styles.periodChoice} onClick={() => setCalendarView('week')}>{t('week')}</button>
+          <button type="button" className={calendarView === 'threeDays' ? styles.periodChoiceActive : styles.periodChoice} onClick={() => setCalendarView('threeDays')}>{t('threeDays')}</button>
+          <button type="button" className={calendarView === 'day' ? styles.periodChoiceActive : styles.periodChoice} onClick={() => setCalendarView('day')}>{t('day')}</button>
+        </div>
+        <div className={styles.periodNavigation}>
+          <button type="button" className={styles.periodNavButton} onClick={() => movePeriod(-1)} aria-label={translateText('Previous period')}>←</button>
+          <button type="button" className={styles.todayButton} onClick={resetToToday}>{t('today')}</button>
+          <span className={styles.periodLabel}>
+            {periodAnchor.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+            {periodDays > 1 && ` – ${periodEnd.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`}
+          </span>
+          <button type="button" className={styles.periodNavButton} onClick={() => movePeriod(1)} aria-label={translateText('Next period')}>→</button>
+        </div>
+      </div>
 
       <div className={styles.calendarScroll} ref={calendarScrollRef}>
         <table className={styles.calendar}>
           <thead>
             <tr>
-              <th className={styles.weekCol}>Week</th>
-              {weekColumns.map((column) => (
-                <th key={column.dayOfWeek} className={styles.dayCol}>
-                  {column.weekdayLabel}
+              <th className={styles.weekCol}>{t('week')}</th>
+              {visibleCalendarCells.map((cell) => (
+                <th key={cell.dateKey} className={styles.dayCol}>
+                  {cell.date.toLocaleDateString(undefined, { weekday: 'short' })} {cell.date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {calendarWeekRows.map((calendarWeek) => {
+            {visibleCalendarRows.map((calendarWeek) => {
               const compliance = getWeekCompliance(calendarWeek.cells)
               return (
               <tr key={calendarWeek.key} className={styles.weekRow}>
@@ -692,7 +737,7 @@ export default function TrainingCalendar({
                               {readinessSummary.label}
                             </span>
                           )}
-                          {isToday && <span className={styles.todayPill}>Today</span>}
+                          {isToday && <span className={styles.todayPill}>{t('today')}</span>}
                         </div>
 
                         {readinessNotePreview && (
@@ -1022,15 +1067,15 @@ export default function TrainingCalendar({
       <div className={styles.legend}>
         <div className={styles.legendItem}>
           <span className={styles.legendIcon}>🎯</span>
-          Drag to reschedule
+          {translateText('Drag to reschedule')}
         </div>
         <div className={styles.legendItem}>
           <span className={styles.legendIcon}>✏️</span>
-          Click to edit full session
+          {translateText('Click to edit full session')}
         </div>
         <div className={styles.legendItem}>
           <span className={styles.legendIcon}>✨</span>
-          Orange border = unsaved changes
+          {translateText('Orange border = unsaved changes')}
         </div>
       </div>
     </div>

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import type { BodyMetricsEntry } from '../lib/types'
 import styles from './BodyMetricsLog.module.scss'
+import { useLocale } from '../lib/i18n'
 
 interface BodyMetricsLogProps {
   entries: BodyMetricsEntry[]
@@ -17,6 +18,7 @@ function todayKey(): string {
 }
 
 export function BodyMetricsLog({ entries, defaultWeightKg, defaultRestingHr, onSave }: BodyMetricsLogProps) {
+  const { translateText } = useLocale()
   const today = todayKey()
   const existingToday = entries.find((entry) => entry.date === today)
   const [weightKg, setWeightKg] = useState(existingToday?.weightKg != null ? String(existingToday.weightKg) : defaultWeightKg != null ? String(defaultWeightKg) : '')
@@ -49,42 +51,42 @@ export function BodyMetricsLog({ entries, defaultWeightKg, defaultRestingHr, onS
     <section className={styles.card}>
       <div className={styles.header}>
         <div>
-          <h3>Body Metrics Log</h3>
-          <p>Track weight, resting HR, and HRV to add context to training load and recovery.</p>
+          <h3>{translateText('Body Metrics Log')}</h3>
+          <p>{translateText('Track weight, resting HR, and HRV to add context to training load and recovery.')}</p>
         </div>
         <span className={styles.todayChip}>{today}</span>
       </div>
 
       <div className={styles.formGrid}>
         <label>
-          <span>Weight (kg)</span>
+          <span>{translateText('Weight (kg)')}</span>
           <input type="number" step="0.1" min="30" max="200" value={weightKg} onChange={(event) => setWeightKg(event.target.value)} />
         </label>
         <label>
-          <span>Resting HR (bpm)</span>
+          <span>{translateText('Resting HR (bpm)')}</span>
           <input type="number" min="20" max="120" value={restingHr} onChange={(event) => setRestingHr(event.target.value)} />
         </label>
         <label>
-          <span>HRV (ms)</span>
+          <span>{translateText('HRV (ms)')}</span>
           <input type="number" min="0" max="300" value={hrvMs} onChange={(event) => setHrvMs(event.target.value)} />
         </label>
       </div>
 
       <label className={styles.notesField}>
-        <span>Notes</span>
+        <span>{translateText('Notes')}</span>
         <textarea rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Travel, poor sleep, illness, menstrual cycle, etc." />
       </label>
 
       <div className={styles.footer}>
         <button type="button" className={styles.saveBtn} onClick={handleSave} disabled={saving}>
-          {saving ? 'Saving...' : existingToday ? 'Update Metrics' : 'Save Metrics'}
+          {saving ? translateText('Saving...') : existingToday ? translateText('Update Metrics') : translateText('Save Metrics')}
         </button>
       </div>
 
       <div className={styles.history}>
-        <h4>Recent entries</h4>
+        <h4>{translateText('Recent entries')}</h4>
         {latestEntries.length === 0 ? (
-          <p className={styles.emptyState}>No metrics logged yet.</p>
+          <p className={styles.emptyState}>{translateText('No metrics logged yet.')}</p>
         ) : (
           <ul>
             {latestEntries.map((entry) => (

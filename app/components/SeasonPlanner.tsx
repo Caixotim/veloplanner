@@ -3,6 +3,7 @@
 import type { StoredPlan } from '../lib/storage'
 import type { EventPriority, TrainingPhase, UserProfile } from '../lib/types'
 import styles from './SeasonPlanner.module.scss'
+import { useLocale } from '../lib/i18n'
 
 interface SeasonPlannerProps {
   storedPlans: StoredPlan[]
@@ -145,14 +146,15 @@ function buildYearSections(storedPlans: StoredPlan[], plannedEvents?: UserProfil
 }
 
 export function SeasonPlanner({ storedPlans, currentPlanId, plannedEvents = [], onSelectPlan }: SeasonPlannerProps) {
+  const { translateText } = useLocale()
   const sections = buildYearSections(storedPlans, plannedEvents)
 
   return (
     <section className={styles.wrapper}>
       <div className={styles.header}>
         <div>
-          <h2>Season Planner</h2>
-          <p>Review all saved plans across the year, see phase blocks at a glance, and jump directly into any plan.</p>
+          <h2>{translateText('Season Planner')}</h2>
+          <p>{translateText('Review all saved plans across the year, see phase blocks at a glance, and jump directly into any plan.')}</p>
         </div>
       </div>
 
@@ -189,7 +191,7 @@ export function SeasonPlanner({ storedPlans, currentPlanId, plannedEvents = [], 
 
           <div className={styles.planRows}>
             {section.plans.length === 0 ? (
-              <div className={styles.emptyYear}>No saved plans in this year.</div>
+              <div className={styles.emptyYear}>{translateText('No saved plans in this year.')}</div>
             ) : (
               section.plans.map((plan) => {
                 const clippedStart = clipDate(plan.startDate, startOfYear(section.year), endOfYear(section.year))

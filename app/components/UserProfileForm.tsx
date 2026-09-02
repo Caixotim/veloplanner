@@ -11,6 +11,7 @@ import type {
   ShortDayPreference,
   DietPreference,
 } from '@/app/lib/types'
+import { useLocale } from '@/app/lib/i18n'
 
 type PlannedEventDraft = {
   id: string
@@ -137,6 +138,7 @@ export function UserProfileForm({
   showAthleteDetails = true,
   compactCreation = false,
 }: UserProfileFormProps) {
+  const { translateText } = useLocale()
   const [profile, setProfile] = useState<Partial<UserProfile>>(() => mergeWithDefaultProfile(initialProfile))
   const [planDescription, setPlanDescription] = useState('')
   const [planDescriptionFeedback, setPlanDescriptionFeedback] = useState<string | null>(null)
@@ -227,11 +229,11 @@ export function UserProfileForm({
 
       {showPlanInputs && (
       <div className={styles.section}>
-        <h3>Plan Inputs</h3>
-        <p className={styles.hint}>These settings define what gets scheduled and when it starts.</p>
+        <h3>{translateText('Plan Inputs')}</h3>
+        <p className={styles.hint}>{translateText('These settings define what gets scheduled and when it starts.')}</p>
 
         <div className={styles.descriptionInput}>
-          <label htmlFor="plan-description">Describe the plan you want</label>
+          <label htmlFor="plan-description">{translateText('Describe the plan you want')}</label>
           <div className={styles.descriptionInputRow}>
             <input
               id="plan-description"
@@ -241,14 +243,14 @@ export function UserProfileForm({
               placeholder="e.g. Build endurance for 12 weeks starting 2026-09-07"
               disabled={loading}
             />
-            <button type="button" className={styles.secondaryButton} onClick={applyPlanDescription} disabled={loading || !planDescription.trim()}>Use description</button>
+            <button type="button" className={styles.secondaryButton} onClick={applyPlanDescription} disabled={loading || !planDescription.trim()}>{translateText('Use description')}</button>
           </div>
           {planDescriptionFeedback && <small className={styles.descriptionFeedback}>{planDescriptionFeedback}</small>}
         </div>
 
         <div className={styles.grid}>
           <div className={styles.group}>
-            <label htmlFor="planName">Plan Name</label>
+            <label htmlFor="planName">{translateText('Plan Name')}</label>
             <input
               id="planName"
               type="text"
@@ -261,7 +263,7 @@ export function UserProfileForm({
           </div>
 
           <div className={styles.group}>
-            <label htmlFor="goal">Training Goal</label>
+            <label htmlFor="goal">{translateText('Training Goal')}</label>
             <select
               id="goal"
               value={profile.goal || 'ftp_increase'}
@@ -401,12 +403,12 @@ export function UserProfileForm({
 
       {(showPlanInputs || showAthleteDetails) && (
         <div className={styles.section}>
-          <h3>Time-Crunched Strategy</h3>
+          <h3>{translateText('Time-Crunched Strategy')}</h3>
           <p className={styles.hint}>Tune how short training windows are converted into quality sessions across each week.</p>
 
           <div className={styles.grid}>
             <div className={styles.group}>
-              <label htmlFor="qualityPriority">Quality Priority</label>
+              <label htmlFor="qualityPriority">{translateText('Quality Priority')}</label>
               <select
                 id="qualityPriority"
                 value={profile.qualityPriority || 'balanced'}
@@ -425,7 +427,7 @@ export function UserProfileForm({
             </div>
 
             <div className={styles.group}>
-              <label htmlFor="hardSessionsPerWeekCap">Hard Sessions Per Week Cap</label>
+              <label htmlFor="hardSessionsPerWeekCap">{translateText('Hard Sessions Per Week Cap')}</label>
               <select
                 id="hardSessionsPerWeekCap"
                 value={profile.hardSessionsPerWeekCap || 2}
@@ -444,7 +446,7 @@ export function UserProfileForm({
             </div>
 
             <div className={styles.group}>
-              <label htmlFor="shortDayPreference">Short-Day Preference</label>
+              <label htmlFor="shortDayPreference">{translateText('Short-Day Preference')}</label>
               <select
                 id="shortDayPreference"
                 value={profile.shortDayPreference || 'mixed'}
@@ -467,12 +469,12 @@ export function UserProfileForm({
 
       {(showPlanInputs || showAthleteDetails) && (
         <div className={styles.section}>
-          <h3>Nutrition Preferences</h3>
+          <h3>{translateText('Nutrition Preferences')}</h3>
           <p className={styles.hint}>Used to shape diet-aligned meal suggestions with optional macro targets.</p>
 
           <div className={styles.grid}>
             <div className={styles.group}>
-              <label htmlFor="dietPreference">Diet Pattern</label>
+              <label htmlFor="dietPreference">{translateText('Diet Pattern')}</label>
               <select
                 id="dietPreference"
                 value={profile.dietPreference || 'mediterranean'}
@@ -556,12 +558,12 @@ export function UserProfileForm({
       {showAthleteDetails && (
       <>
       <div className={styles.section}>
-        <h3>Athlete Details</h3>
+        <h3>{translateText('Athlete Details')}</h3>
         <p className={styles.hint}>Stored separately from the plan. These only trigger a plan refresh when they affect training targets.</p>
 
         <div className={styles.grid}>
           <div className={styles.group}>
-            <label htmlFor="age">Age</label>
+            <label htmlFor="age">{translateText('Age')}</label>
             <input
               id="age"
               type="number"
@@ -575,7 +577,7 @@ export function UserProfileForm({
           </div>
 
           <div className={styles.group}>
-            <label htmlFor="height">Height (cm)</label>
+            <label htmlFor="height">{translateText('Height (cm)')}</label>
             <input
               id="height"
               type="number"
@@ -589,7 +591,7 @@ export function UserProfileForm({
           </div>
 
           <div className={styles.group}>
-            <label htmlFor="weight">Weight (kg)</label>
+            <label htmlFor="weight">{translateText('Weight (kg)')}</label>
             <input
               id="weight"
               type="number"
@@ -606,12 +608,12 @@ export function UserProfileForm({
       </div>
 
       <div className={styles.section}>
-        <h3>Training Constraints</h3>
-        <p className={styles.hint}>These details shape session timing and workout targets without changing the high-level goal.</p>
+        <h3>{translateText('Training Constraints')}</h3>
+        <p className={styles.hint}>{translateText('These details shape session timing and workout targets without changing the high-level goal.')}</p>
 
         <div className={styles.grid}>
           <div className={styles.group}>
-            <label htmlFor="ftp">Current FTP (watts) - optional</label>
+            <label htmlFor="ftp">{translateText('Current FTP (watts) - optional')}</label>
             <input
               id="ftp"
               type="number"
@@ -625,7 +627,7 @@ export function UserProfileForm({
           </div>
         </div>
 
-        <h3>Available Training Time</h3>
+        <h3>{translateText('Available Training Time')}</h3>
         <div className={styles.timeGrid}>
           {Object.entries(profile.availableTime || {}).map(([day, hours]) => (
             <div key={day} className={styles.timeGroup}>
@@ -655,7 +657,7 @@ export function UserProfileForm({
       </div>
 
       <div className={styles.section}>
-        <h3>Equipment Available</h3>
+        <h3>{translateText('Equipment Available')}</h3>
         <div className={styles.equipmentGrid}>
           {EQUIPMENT_OPTIONS.map(equipment => (
             <button
@@ -675,7 +677,7 @@ export function UserProfileForm({
       </div>
 
       <div className={styles.section}>
-        <h3>Current Injuries or Issues</h3>
+        <h3>{translateText('Current Injuries or Issues')}</h3>
         <div className={styles.injuriesGrid}>
           {INJURIES.map(injury => (
             <button
@@ -694,7 +696,7 @@ export function UserProfileForm({
       </div>
 
       <div className={styles.section}>
-        <h3>⚡ Power Meter & Performance Data</h3>
+        <h3>⚡ {translateText('Power Meter & Performance Data')}</h3>
         <label className={styles.checkboxLabel}>
           <input
             type="checkbox"
@@ -702,7 +704,7 @@ export function UserProfileForm({
             onChange={e => setProfile({ ...profile, hasPowerMeter: e.target.checked })}
             disabled={loading}
           />
-          <span>I have a power meter on my bike</span>
+          <span>{translateText('I have a power meter on my bike')}</span>
         </label>
         <p className={styles.hint}>
           {profile.hasPowerMeter

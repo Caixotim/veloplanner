@@ -106,6 +106,15 @@ const RIDE_INTENSITY_COLORS = {
 } as const
 
 export default function Home() {
+  const [redirecting] = useState(true)
+  useEffect(() => {
+    window.location.replace('/coach')
+  }, [])
+
+  if (redirecting) {
+    return <main aria-label="Opening coach">Opening your coach…</main>
+  }
+
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<DashboardStats>(DEFAULT_STATS)
   const [userSnapshot, setUserSnapshot] = useState<UserSnapshot | null>(null)
@@ -460,8 +469,8 @@ export default function Home() {
         <h1>Train with clarity</h1>
         <p>Start with today&apos;s coaching recommendation, then use your progress metrics when you want to understand the bigger picture.</p>
         <div className={styles.heroActions}>
-          <Link href="/plans" className={styles.primaryCta}>
-            Open Coach
+            <Link className={styles.syncBtn} href="/coach">
+              Chat with your coach
           </Link>
           <Link href="/profile" className={styles.secondaryCta}>
             Open Profile
@@ -475,7 +484,7 @@ export default function Home() {
             <h2>Progress at a glance</h2>
             <p>Useful context without turning every training decision into a spreadsheet.</p>
           </div>
-          <Link href="/plans" className={styles.textLink}>View coaching</Link>
+          <Link href="/coach" className={styles.textLink}>View coaching</Link>
         </div>
         <div className={styles.metricsGrid}>
           <article className={styles.metricCard}>

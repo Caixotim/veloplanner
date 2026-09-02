@@ -10,6 +10,8 @@ type IntervalsEvent = {
   start_date_local?: string
   end_date_local?: string
   moving_time?: number
+  duration?: number
+  planned_duration?: number
   category?: string
 }
 
@@ -100,15 +102,17 @@ export async function POST(request: Request): Promise<Response> {
       }
     }
 
+    const completePlans = mergeFragmentedPlans(reconstructedPlans)
+
     console.info('Fetched plans from Intervals.icu', {
-      count: reconstructedPlans.length,
+      count: completePlans.length,
       eventCount: aiEvents.length,
     })
 
     return Response.json({
       success: true,
-      plans: reconstructedPlans,
-      count: reconstructedPlans.length,
+      plans: completePlans,
+      count: completePlans.length,
     } satisfies PlansResponse)
   } catch (error) {
     console.error('Failed to fetch plans from Intervals.icu', { error })
@@ -123,12 +127,77 @@ export async function POST(request: Request): Promise<Response> {
   }
 }
 
+function mergeFragmentedPlans(plans: TrainingPlan[]): TrainingPlan[] {
+  const merged = new Map<string, TrainingPlan>()
+
+  for (const plan of plans) {
+    const key = normalizePlanName(plan.name)
+    const existing = merged.get(key)
+    if (!existing) {
+      merged.set(key, plan)
+      continue
+    }
+
+    const existingStart = existing.startDate.getTime()
+    const existingEnd = existing.endDate.getTime()
+    const planStart = plan.startDate.getTime()
+    const planEnd = plan.endDate.getTime()
+    const overlaps = existingStart <= planEnd && planStart <= existingEnd
+    const adjacent = Math.abs(planStart - existingEnd) <= 7 * 24 * 60 * 60 * 1000 || Math.abs(existingStart - planEnd) <= 7 * 24 * 60 * 60 * 1000
+
+    if (!overlaps && !adjacent) {
+      merged.set(`${key}:${plan.id}`, plan)
+      continue
+    }
+
+    const sessionsById = new Map(existing.weeks.flatMap((week) => week.sessions).map((session) => [session.id, session]))
+    for (const session of plan.weeks.flatMap((week) => week.sessions)) {
+      sessionsById.set(session.id, session)
+    }
+
+    const allSessions = [...sessionsById.values()].sort((left, right) => left.date.getTime() - right.date.getTime())
+    const startDate = new Date(Math.min(existingStart, planStart))
+    const endDate = new Date(Math.max(existingEnd, planEnd))
+    const durationWeeks = Math.max(existing.durationWeeks, plan.durationWeeks, Math.ceil((endDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000)))
+    const weeks = Array.from({ length: durationWeeks }, (_, index) => {
+      const weekNumber = index + 1
+      const sessions = allSessions.filter((session) => {
+        const offset = Math.floor((session.date.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000))
+        return Math.floor(offset / 7) + 1 === weekNumber
+      })
+      const template = existing.weeks.find((week) => week.weekNumber === weekNumber) || plan.weeks.find((week) => week.weekNumber === weekNumber)
+      return {
+        ...(template || { weekNumber, phase: 'base' as const, focusPoints: [] }),
+        weekNumber,
+        sessions,
+        totalHours: sessions.reduce((sum, session) => sum + session.duration / 60, 0),
+      }
+    })
+
+    merged.set(key, {
+      ...existing,
+      externalPlanId: existing.externalPlanId || plan.externalPlanId,
+      startDate,
+      endDate,
+      durationWeeks,
+      weeks,
+      updatedAt: new Date(),
+    })
+  }
+
+  return [...merged.values()]
+}
+
+function normalizePlanName(name: string): string {
+  return name.trim().replace(/\s+/g, ' ').toLocaleLowerCase()
+}
+
 function reconstructPlanFromEvents(planId: string, events: IntervalsEvent[]): TrainingPlan | null {
   if (events.length === 0) return null
 
   // Extract basic info from first event name: "[AI] Week X TYPE"
   const firstEvent = events[0]
-  const firstDate = firstEvent.start_date_local ? new Date(firstEvent.start_date_local) : new Date()
+  const firstDate = firstEvent.start_date_local ? parseCalendarDate(firstEvent.start_date_local) : new Date()
   const planName = extractPlanName(firstEvent.name) || `Recovered Plan ${planId.slice(-6)}`
 
   // Reconstruct sessions from events
@@ -137,10 +206,11 @@ function reconstructPlanFromEvents(planId: string, events: IntervalsEvent[]): Tr
   for (const event of events) {
     if (!event.external_id) continue
 
-    const [, sessionId] = event.external_id.split(':')
+    const [, ...sessionIdParts] = event.external_id.split(':')
+    const sessionId = sessionIdParts.join(':')
     if (!sessionId) continue
 
-    const startDate = event.start_date_local ? new Date(event.start_date_local) : firstDate
+    const startDate = event.start_date_local ? parseCalendarDate(event.start_date_local) : firstDate
     const weekMatch = event.name?.match(/Week\s+(\d+)/i)
     const inferredWeekFromDate = inferWeekNumberFromDate(firstDate, startDate)
     const weekNumber = weekMatch ? parseInt(weekMatch[1], 10) : inferredWeekFromDate
@@ -149,8 +219,8 @@ function reconstructPlanFromEvents(planId: string, events: IntervalsEvent[]): Tr
       sessions.set(weekNumber, [])
     }
 
-    const endDate = event.end_date_local ? new Date(event.end_date_local) : startDate
-    const duration = event.moving_time ? Math.round(event.moving_time / 60) : 60
+    const durationSeconds = event.duration || event.planned_duration || event.moving_time
+    const duration = durationSeconds ? Math.max(1, Math.round(durationSeconds / 60)) : 60
 
     const typeMatch = event.name?.match(/(ENDURANCE|TEMPO|THRESHOLD|VO2MAX|ANAEROBIC|STRENGTH|RECOVERY)/i)
     const sessionType = (typeMatch?.[1]?.toLowerCase() || 'endurance') as any
@@ -173,7 +243,8 @@ function reconstructPlanFromEvents(planId: string, events: IntervalsEvent[]): Tr
 
   // Build weeks array
   const weeks: TrainingWeek[] = []
-  for (let week = 1; week <= Math.max(...sessions.keys(), 12); week++) {
+  const maxWeek = Math.max(...sessions.keys(), 1)
+  for (let week = 1; week <= maxWeek; week++) {
     const weekSessions = sessions.get(week) || []
     weeks.push({
       weekNumber: week,
@@ -222,12 +293,18 @@ function inferWeekNumberFromDate(planStartDate: Date, sessionDate: Date): number
   return Math.floor(dayDiff / 7) + 1
 }
 
+function parseCalendarDate(value: string): Date {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!match) return new Date(value)
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+}
+
 function extractPlanName(name?: string): string | null {
   if (!name) {
     return null
   }
 
-  const match = name.match(/^\[AI\]\s+(.*?)\s+•\s+Week\s+\d+/)
+  const match = name.match(/^\[AI\]\s+(.*?)\s+[•·]\s+Week\s+\d+/)
   if (match?.[1]) {
     return match[1].trim()
   }

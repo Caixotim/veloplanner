@@ -644,6 +644,10 @@
 /* New styles for enhanced features */
 
 .planHeader {
+  display: none !important;
+}
+
+.planHeader {
   display: flex;
   flex-direction: row;
   justify-content: space-between;
@@ -951,7 +955,7 @@
   background: var(--theme-surface);
   border-bottom: 2px solid var(--theme-border);
   box-shadow: 0 2px 8px var(--theme-card-shadow);
-  margin: 0 -1rem 1.5rem;
+  margin: 1.5rem -1rem 1.5rem;
   padding: 0 1rem;
 }
 
@@ -1008,6 +1012,13 @@
 
   @media (max-width: 768px) {
     padding-bottom: 80px;
+  }
+}
+
+@media (max-width: 768px) {
+  .workspaceTabBar {
+    margin-top: 1rem;
+    margin-bottom: 1.25rem;
   }
 }
 

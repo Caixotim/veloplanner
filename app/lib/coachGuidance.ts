@@ -10,6 +10,8 @@ export type CoachGuidance = {
   shouldShowMetrics?: boolean
   shouldShowToday?: boolean
   shouldShowNutrition?: boolean
+  shouldDeleteSession?: boolean
+  shouldDeleteFutureSessions?: boolean
 }
 
 type CoachGuidanceInput = {
@@ -17,15 +19,72 @@ type CoachGuidanceInput = {
   plan: TrainingPlan
   session?: TrainingSession
   recentRides?: Array<{ date: number; duration: number }>
+  locale?: 'en' | 'pt-PT'
 }
 
 /**
  * Provides a deterministic, explainable first response for common training questions.
  * Plan changes remain explicit through the existing session editor.
  */
-export function buildCoachGuidance({ question, plan, session, recentRides = [] }: CoachGuidanceInput): CoachGuidance | null {
-  const normalized = question.trim().toLowerCase()
+export function buildCoachGuidance({ question, plan, session, recentRides = [], locale = 'en' }: CoachGuidanceInput): CoachGuidance | null {
+  const pt = locale === 'pt-PT'
+  const normalized = question.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   if (!normalized) return null
+
+  if (/(delete|remove|cancel|remov|elimin|apag).*(session|workout|ride|sess(?:ion|oes?)|treino|volta)|(?:(session|workout|ride|sess(?:ion|oes?)|treino|volta).*(delete|remove|cancel|remov|elimin|apag))/.test(normalized)) {
+    const asksAboutFuture = /(future|upcoming|remaining|rest of|after today|from tomorrow|next week|later this week|futur[oa]s?|proxim[ao]s?|restantes?|depois de hoje|a partir de amanha)/.test(normalized)
+    const hasSpecificTarget = /(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|segunda|terca|quarta|quinta|sexta|sabado|domingo|20\d{2}-\d{2}-\d{2}|threshold|tempo|endurance|vo2|strength|recovery|anaerobic)/.test(normalized)
+    const asksForMultiple = /\b(sessions|workouts|rides|sessoes|treinos|voltas|all|every|todas?|todos?)\b/.test(normalized)
+    const isPortugueseDeletion = /\b(remov|elimin|apag|cancel).*(sess|trein|volt)|\b(sess|trein|volt).*(remov|elimin|apag|cancel)/.test(normalized)
+    if (asksAboutFuture && !hasSpecificTarget && isPortugueseDeletion) {
+      return {
+        answer: pt ? 'Encontrei as sessões futuras no seu calendário. Vou mostrar exactamente o que será removido e pedir-lhe confirmação antes de alterar o plano.' : 'I found the future sessions in your calendar. I will show exactly what will be removed and ask you to confirm before changing your plan.',
+        shouldOpenEditor: false,
+        shouldOpenCalendar: false,
+        shouldDeleteFutureSessions: true,
+      }
+    }
+    if ((asksAboutFuture || asksForMultiple) && !hasSpecificTarget) {
+      return {
+        answer: pt ? 'Posso ajudar a remover sessões futuras, mas preciso primeiro do limite: devo remover tudo depois de hoje ou apenas uma semana ou intervalo de datas específico? Mostrarei exactamente o que será removido e pedirei confirmação.' : 'I can help clear upcoming sessions, but I need to know the boundary first: should I remove everything after today, or only sessions in a specific week or date range? I will show you exactly what will be removed and ask you to confirm before changing anything.',
+        shouldOpenEditor: false,
+        shouldOpenCalendar: false,
+      }
+    }
+
+    return {
+      answer: pt ? 'Encontrei a sessão correspondente no seu calendário. Vou mostrar os detalhes e pedir confirmação antes de alterar o plano ou o Intervals.icu.' : 'I found the matching session in your calendar. I’ll show you the details and ask for confirmation before changing your plan or Intervals.icu.',
+      shouldOpenEditor: false,
+      shouldOpenCalendar: false,
+      shouldDeleteSession: Boolean(session),
+    }
+  }
+
+  if (/(create|add|schedule|plan|book).*(session|workout|ride)|(?:session|workout|ride).*(create|add|schedule|book)/.test(normalized)) {
+    const requestedSessionType = normalized.includes('strength')
+      ? 'strength'
+      : normalized.includes('tempo')
+        ? 'tempo'
+        : normalized.includes('threshold')
+          ? 'threshold'
+          : normalized.includes('vo2')
+            ? 'vo2max'
+            : normalized.includes('recovery')
+              ? 'recovery'
+              : 'endurance'
+    const durationMatch = normalized.match(/(\d+)\s*(minute|min|hour|hr)s?/)
+    const suggestedDurationMinutes = durationMatch
+      ? Number(durationMatch[1]) * (/hour|hr/.test(durationMatch[2]) ? 60 : 1)
+      : requestedSessionType === 'strength' ? 45 : 60
+    return {
+      answer: pt ? 'Posso preparar essa sessão. Reveja os detalhes abaixo e confirme antes de a adicionar ao seu plano.' : 'I can prepare that session. Review the workout details below and confirm before I add it to your plan.',
+      shouldOpenEditor: false,
+      shouldOpenCalendar: false,
+      suggestedSessionType: requestedSessionType,
+      suggestedDurationMinutes,
+      suggestedIntensity: requestedSessionType === 'recovery' || requestedSessionType === 'endurance' ? 'easy' : 'moderate',
+    }
+  }
 
   if (/(tired|fatigue|sore|recover)/.test(normalized)) {
     const explicitlyRequestingRecovery = /(?:make|set|change|turn|switch|convert).*(?:easy|recovery)|(?:easy|recovery).*(?:ride|session|today)/.test(normalized)

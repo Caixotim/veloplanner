@@ -1,5 +1,5 @@
-import PlansWorkspace from '../components/PlansWorkspace'
+import { redirect } from 'next/navigation'
 
 export default function PlansPage() {
-  return <PlansWorkspace />
+  redirect('/coach')
 }

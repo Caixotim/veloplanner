@@ -8,6 +8,7 @@ import {
 } from '@/app/lib/integrationCredentials'
 import { PlugIcon } from './icons/AppIcons'
 import styles from './IntervalsConnection.module.scss'
+import { useLocale } from '@/app/lib/i18n'
 
 interface IntervalsConnectionProps {
   onConnectionChange?: (status: { provider: 'intervals' | 'meals'; connected: boolean }) => void
@@ -16,6 +17,7 @@ interface IntervalsConnectionProps {
 type Provider = 'intervals'
 
 export function IntervalsConnection({ onConnectionChange }: IntervalsConnectionProps) {
+  const { translateText } = useLocale()
   const [isSaving, setIsSaving] = useState(false)
   const [intervalsConnected, setIntervalsConnected] = useState(false)
   const [activeModal, setActiveModal] = useState<Provider | null>(null)
@@ -61,7 +63,7 @@ export function IntervalsConnection({ onConnectionChange }: IntervalsConnectionP
 
       if (activeModal === 'intervals') {
         if (!intervalsApiKey.trim() || !intervalsAthleteId.trim()) {
-          setError('Please provide both Intervals API key and Athlete ID.')
+          setError(translateText('Please provide both Intervals API key and Athlete ID.'))
           return
         }
 
@@ -81,7 +83,7 @@ export function IntervalsConnection({ onConnectionChange }: IntervalsConnectionP
 
         const payload = (await testResponse.json()) as { success?: boolean; error?: string }
         if (payload.success === false) {
-          throw new Error(payload.error || 'Intervals credentials rejected')
+          throw new Error(payload.error || translateText('Intervals credentials rejected'))
         }
 
         await saveIntervalsCredentials({
@@ -98,7 +100,7 @@ export function IntervalsConnection({ onConnectionChange }: IntervalsConnectionP
 
       closeModal()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save connection')
+      setError(err instanceof Error ? err.message : translateText('Failed to save connection'))
     } finally {
       setIsSaving(false)
     }
@@ -113,7 +115,7 @@ export function IntervalsConnection({ onConnectionChange }: IntervalsConnectionP
         onConnectionChange?.({ provider: 'intervals', connected: false })
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to disconnect integration')
+      setError(err instanceof Error ? err.message : translateText('Failed to disconnect integration'))
     }
   }
 
@@ -122,15 +124,15 @@ export function IntervalsConnection({ onConnectionChange }: IntervalsConnectionP
       <div className={styles.card}>
         <div className={styles.header}>
           <span className={styles.icon}><PlugIcon size={26} /></span>
-          <h3>Integrations</h3>
+          <h3>{translateText('Integrations')}</h3>
         </div>
 
         <p className={styles.description}>
-          Connect provider credentials once per browser. Credentials stay local in your browser storage.
+          {translateText('Connect provider credentials once per browser. Credentials stay local in your browser storage.')}
         </p>
 
         <section className={styles.setupGuide} aria-labelledby="intervals-setup-guide-title">
-          <h4 id="intervals-setup-guide-title">How to connect Intervals.icu</h4>
+          <h4 id="intervals-setup-guide-title">{translateText('How to connect Intervals.icu')}</h4>
           <ol>
             <li>
               Sign in to Intervals.icu:{' '}

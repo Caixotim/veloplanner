@@ -12,6 +12,7 @@ import { computeThresholdHistory, computeZoneVersions, summarizeThresholdTrend }
 import { computeRampGuidance, computeWeeklyRampTimeline } from '@/app/lib/rampModel'
 import { computeFreshnessScore, computeMonotonyIndex, computeSeasonPhaseOverview, computeWeeklyPlanSuggestion } from '@/app/lib/athleteMetrics'
 import styles from './PerformanceCharts.module.scss'
+import { useLocale } from '../lib/i18n'
 
 /**
  * Props for the PerformanceCharts component
@@ -61,6 +62,7 @@ export default function PerformanceCharts({
   intervalsRideData = [],
   bodyMetrics = [],
 }: PerformanceChartsProps) {
+  const { translateText } = useLocale()
   const [selectedCoachActionKey, setSelectedCoachActionKey] = React.useState<string | null>(null)
   const [openSections, setOpenSections] = React.useState({
     actual: true,
@@ -618,14 +620,14 @@ export default function PerformanceCharts({
 
   return (
     <div className={styles.chartsContainer}>
-      <h2>Performance Analytics</h2>
+      <h2>{translateText('Performance Analytics')}</h2>
 
       {bodyMetricsChartData.length > 0 && (
         <section className={styles.bodyMetricsCard} aria-label="Body metrics trend">
           <div className={styles.bodyMetricsHeader}>
             <div>
-              <h3>Body Metrics Trend</h3>
-              <p>Track weight, resting HR, and HRV changes alongside training load.</p>
+              <h3>{translateText('Body Metrics Trend')}</h3>
+              <p>{translateText('Track weight, resting HR, and HRV changes alongside training load.')}</p>
             </div>
           </div>
           <div className={styles.bodyMetricsChart}>
@@ -660,11 +662,11 @@ export default function PerformanceCharts({
           <strong>{loadSummary.currentTsb.toFixed(1)}</strong>
         </article>
         <article className={styles.loadSummaryCard}>
-          <span>7d Planned Stress</span>
+          <span>{translateText('7d Planned Stress')}</span>
           <strong>{loadSummary.weeklyStressPlanned.toFixed(1)}</strong>
         </article>
         <article className={styles.loadSummaryCard}>
-          <span>7d Completed Stress</span>
+          <span>{translateText('7d Completed Stress')}</span>
           <strong>{loadSummary.weeklyStressCompleted.toFixed(1)}</strong>
         </article>
         <article className={styles.loadSummaryCard}>
@@ -672,25 +674,25 @@ export default function PerformanceCharts({
           <strong>{loadSummary.currentRamp7d.toFixed(1)}</strong>
         </article>
         <article className={styles.loadSummaryCard}>
-          <span>Next 7d Planned Stress</span>
+          <span>{translateText('Next 7d Planned Stress')}</span>
           <strong>{loadSummary.plannedStressNext7d.toFixed(1)}</strong>
         </article>
         <article className={styles.loadSummaryCard}>
-          <span>Projected TSB (+7d)</span>
+          <span>{translateText('Projected TSB (+7d)')}</span>
           <strong>{loadSummary.projectedTsb7d.toFixed(1)}</strong>
         </article>
         <article className={`${styles.loadSummaryCard} ${styles[`freshnessCard_${freshnessScore.category}`] || ''}`}>
-          <span>Freshness</span>
+          <span>{translateText('Freshness')}</span>
           <strong>{freshnessScore.score}</strong>
           <span className={styles.freshnessLabel}>{freshnessScore.label}</span>
         </article>
       </section>
 
       <nav className={styles.quickNav} aria-label="Performance analytics sections">
-        <button type="button" className={styles.quickNavLink} onClick={() => expandSectionFromNav('actual', 'analytics-actual')}>Actual Data</button>
-        <button type="button" className={styles.quickNavLink} onClick={() => expandSectionFromNav('planned', 'analytics-planned')}>Planned Load</button>
-        <button type="button" className={styles.quickNavLink} onClick={() => expandSectionFromNav('assessment', 'analytics-assessment')}>Rider Assessment</button>
-        <button type="button" className={styles.quickNavLink} onClick={() => expandSectionFromNav('stats', 'analytics-stats')}>Summary Stats</button>
+        <button type="button" className={styles.quickNavLink} onClick={() => expandSectionFromNav('actual', 'analytics-actual')}>{translateText('Actual Data')}</button>
+        <button type="button" className={styles.quickNavLink} onClick={() => expandSectionFromNav('planned', 'analytics-planned')}>{translateText('Planned Load')}</button>
+        <button type="button" className={styles.quickNavLink} onClick={() => expandSectionFromNav('assessment', 'analytics-assessment')}>{translateText('Rider Assessment')}</button>
+        <button type="button" className={styles.quickNavLink} onClick={() => expandSectionFromNav('stats', 'analytics-stats')}>{translateText('Summary Stats')}</button>
         <div className={styles.quickNavControls}>
           <button
             type="button"
@@ -698,7 +700,7 @@ export default function PerformanceCharts({
             onClick={handleExpandAllSections}
             disabled={allSectionsExpanded}
           >
-            Expand all
+            {translateText('Expand all')}
           </button>
           <button
             type="button"
@@ -706,7 +708,7 @@ export default function PerformanceCharts({
             onClick={handleCollapseAllSections}
             disabled={!Object.values(openSections).some(Boolean)}
           >
-            Collapse all
+            {translateText('Collapse all')}
           </button>
         </div>
       </nav>
@@ -714,7 +716,7 @@ export default function PerformanceCharts({
       <section id="analytics-actual" className={styles.analyticsSection}>
       <div className={styles.sectionHeaderCollapsible}>
         <div className={styles.sectionHeaderMain}>
-          <h3>Actual Performance</h3>
+          <h3>{translateText('Actual Performance')}</h3>
           <p>Based on executed workouts from your Intervals.icu 84-day synced ride window.</p>
         </div>
         <button
@@ -724,14 +726,14 @@ export default function PerformanceCharts({
           aria-expanded={openSections.actual}
           aria-controls="analytics-actual-content"
         >
-          {openSections.actual ? 'Hide' : 'Show'}
+          {openSections.actual ? translateText('Hide') : translateText('Show')}
           <span className={styles.sectionToggleIcon}>{openSections.actual ? '▾' : '▸'}</span>
         </button>
       </div>
       {openSections.actual && <div id="analytics-actual-content" className={styles.chartsGrid}>
         <div className={styles.chartCard}>
           <div className={styles.chartTitleRow}>
-            <h3>Power Curve</h3>
+            <h3>{translateText('Power Curve')}</h3>
             <div className={styles.chartTitleActions}>
               <span className={styles.helpIcon} tabIndex={0} data-tooltip="Shows peak capability from sprint to longer efforts. Hover bars to view watts.">?</span>
               <span className={styles.sourcePill}>Synced Data</span>
@@ -757,7 +759,7 @@ export default function PerformanceCharts({
         {hrTrendData.length > 0 && (
           <div className={styles.chartCard}>
             <div className={styles.chartTitleRow}>
-              <h3>Heart Rate Trend (Recent 21 Rides)</h3>
+              <h3>{translateText('Heart Rate Trend (Recent 21 Rides)')}</h3>
               <div className={styles.chartTitleActions}>
                 <span className={styles.helpIcon} tabIndex={0} data-tooltip="Shows heart-rate drift and stability across recent rides. Hover to inspect each point.">?</span>
                 <span className={styles.sourcePill}>Synced Data</span>
@@ -973,8 +975,8 @@ export default function PerformanceCharts({
 
         {!hasRideData && (
           <div className={styles.chartCard}>
-            <h3>Ride Data Needed</h3>
-            <p className={styles.emptyStateText}>Sync Intervals.icu rides to unlock actual performance analytics.</p>
+            <h3>{translateText('Ride Data Needed')}</h3>
+            <p className={styles.emptyStateText}>{translateText('Sync Intervals.icu rides to unlock actual performance analytics.')}</p>
           </div>
         )}
       </div>}
@@ -983,7 +985,7 @@ export default function PerformanceCharts({
       <section id="analytics-planned" className={styles.analyticsSection}>
       <div className={styles.sectionHeaderCollapsible}>
         <div className={styles.sectionHeaderMain}>
-          <h3>Planned Load</h3>
+          <h3>{translateText('Planned Load')}</h3>
           <p>Generated from the selected plan sessions and periodization, not from completed rides.</p>
         </div>
         <button
@@ -1000,7 +1002,7 @@ export default function PerformanceCharts({
       {openSections.planned && <div id="analytics-planned-content" className={styles.chartsGrid}>
         <div className={styles.chartCard}>
           <div className={styles.chartTitleRow}>
-            <h3>Weekly Volume & Intensity</h3>
+            <h3>{translateText('Weekly Volume & Intensity')}</h3>
             <div className={styles.chartTitleActions}>
               <span className={styles.helpIcon} tabIndex={0} data-tooltip="Volume is planned hours; intensity is planned effort score from session mix.">?</span>
               <span className={styles.sourcePillPlanned}>Plan Data</span>
@@ -1028,7 +1030,7 @@ export default function PerformanceCharts({
 
         <div className={styles.chartCard}>
           <div className={styles.chartTitleRow}>
-            <h3>Intensity Distribution (Planned vs Completed)</h3>
+            <h3>{translateText('Intensity Distribution (Planned vs Completed)')}</h3>
             <div className={styles.chartTitleActions}>
               <span className={styles.helpIcon} tabIndex={0} data-tooltip="Approximates time in zones Z1-Z5 and highlights whether your executed intensity mix matches polarized training principles.">?</span>
               <span className={styles.sourcePill}>Plan + Synced Data</span>
@@ -1086,7 +1088,7 @@ export default function PerformanceCharts({
 
         <div className={styles.chartCard}>
           <div className={styles.chartTitleRow}>
-            <h3>Plan Phase Focus (Week by Week)</h3>
+            <h3>{translateText('Plan Phase Focus (Week by Week)')}</h3>
             <div className={styles.chartTitleActions}>
               <span className={styles.helpIcon} tabIndex={0} data-tooltip="Shows what each week is designed to develop and which training block it belongs to.">?</span>
               <span className={styles.sourcePillPlanned}>Plan Data</span>
@@ -1117,7 +1119,7 @@ export default function PerformanceCharts({
       <section id="analytics-assessment" className={styles.analyticsSection}>
         <div className={styles.sectionHeaderCollapsible}>
           <div className={styles.sectionHeaderMain}>
-            <h3>Rider Assessment Snapshot</h3>
+            <h3>{translateText('Rider Assessment Snapshot')}</h3>
             <p>
               Automated interpretation of synced ride data to highlight strengths, focus areas, and a TrainingPeaks-style
               readiness view using a CTL/ATL/TSB proxy from ride stress.
@@ -1192,7 +1194,7 @@ export default function PerformanceCharts({
       <section id="analytics-stats" className={styles.analyticsSection}>
         <div className={styles.sectionHeaderCollapsible}>
           <div className={styles.sectionHeaderMain}>
-            <h3>Summary Stats</h3>
+            <h3>{translateText('Summary Stats')}</h3>
             <p>Quick comparison between synced ride signals and the active planned training block.</p>
           </div>
           <button

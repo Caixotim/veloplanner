@@ -1,9 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import clsx from 'clsx'
-import { UserProfileForm } from './UserProfileForm'
 import { TrainingPlanDisplay } from './TrainingPlanDisplay'
 import { MealSuggestions } from './MealSuggestions'
 
@@ -39,16 +38,16 @@ import { BodyMetricsLog } from './BodyMetricsLog'
 import PerformanceCharts from './PerformanceCharts'
 import { SeasonPlanner } from './SeasonPlanner'
 import CoachToday from './CoachToday'
+import PlanCoachChat from './PlanCoachChat'
 import { DailyNutritionGuide } from './DailyNutritionGuide'
+import { useLocale } from '../lib/i18n'
 import {
   CalendarIcon,
   ChartIcon,
-  CompassIcon,
   DownloadIcon,
   FileIcon,
   LayersIcon,
   PrinterIcon,
-  SunIcon,
   TableIcon,
 } from './icons/AppIcons'
 
@@ -99,6 +98,7 @@ const SHORT_DAY_PREFERENCE_LABELS: Record<NonNullable<UserProfile['shortDayPrefe
 }
 
 export default function PlansWorkspace() {
+  const { isPortuguese, t, translateText } = useLocale()
   const [plan, setPlan] = useState<TrainingPlan | null>(null)
   const [currentPlan, setCurrentPlan] = useState<TrainingPlan | null>(null)
   const [loading, setLoading] = useState(false)
@@ -110,6 +110,7 @@ export default function PlansWorkspace() {
   const [sessionModalMode, setSessionModalMode] = useState<SessionModalMode>('edit')
   const [intervalsSyncStatus, setIntervalsSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle')
   const [syncMessage, setSyncMessage] = useState('')
+  const initialRemotePlanSyncRef = useRef<string | null>(null)
   const [lastSyncAudit, setLastSyncAudit] = useState<SyncDecisionAudit | null>(null)
   const [syncReconciliationMode, setSyncReconciliationMode] = useState<SyncReconciliationMode>('conservative')
   const [intervalsChanges, setIntervalsChanges] = useState<SyncResult['changes']>([])
@@ -123,8 +124,8 @@ export default function PlansWorkspace() {
   const [backupPlans, setBackupPlans] = useState<TrainingPlan[]>([])
   const [showBackupPlans, setShowBackupPlans] = useState(false)
   const [mealPlanExpanded, setMealPlanExpanded] = useState(false)
-  type WorkspaceTab = 'today' | 'calendar' | 'season' | 'summary' | 'analytics' | 'exports'
-  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>('today')
+  type WorkspaceTab = 'coach' | 'calendar' | 'season' | 'summary' | 'analytics' | 'exports'
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>('coach')
   const [showNutrition, setShowNutrition] = useState(false)
   const [calendarAutoScrollSignal, setCalendarAutoScrollSignal] = useState(0)
   const [activeCoachActionKey, setActiveCoachActionKey] = useState<string | null>(null)
@@ -754,7 +755,12 @@ export default function PlansWorkspace() {
             // matchCount > 0 confirms the plan prefix is tracked in Intervals.icu.
             // If 0 events found, the plan hasn't been synced yet — skip removal.
             if (checkPayload.success && checkPayload.matchCount > 0) {
-              const eventByDate = new Map(checkPayload.events.map((event) => [event.date, event]))
+              const eventsByDate = new Map<string, typeof checkPayload.events>()
+              for (const event of checkPayload.events) {
+                const events = eventsByDate.get(event.date) || []
+                events.push(event)
+                eventsByDate.set(event.date, events)
+              }
               const eventBySessionId = new Map(
                 checkPayload.events
                   .filter((event): event is RemotePlanEventSnapshot & { sessionId: string } => Boolean(event.sessionId))
@@ -763,13 +769,14 @@ export default function PlansWorkspace() {
               const lastPlanSyncMs = toTimestampMs(currentPlan.intervalsSync?.syncedAt) ?? 0
               let hasPlanMutations = false
 
-              const updatedWeeks = currentPlan.weeks.map((week) => {
+              let updatedWeeks = currentPlan.weeks.map((week) => {
                 const updatedSessions = week.sessions.map((session) => {
                   const sessionKey = `${week.weekNumber}-${session.dayOfWeek}`
                   const localLastUpdatedMs = toTimestampMs(session.localUpdatedAt) ?? toTimestampMs(currentPlan.updatedAt) ?? 0
                   const localDateKey = formatDateInput(session.date)
                   const isLocallyDirty = pendingLocalChanges.has(sessionKey)
-                  const remoteEvent = eventBySessionId.get(session.id) ?? eventByDate.get(localDateKey)
+                  const dateEvents = eventsByDate.get(localDateKey) || []
+                  const remoteEvent = eventBySessionId.get(session.id) ?? (dateEvents.length === 1 ? dateEvents[0] : undefined)
                   const wasPlannedSession = session.duration > 0 && session.type !== 'recovery'
 
                   if (!remoteEvent) {
@@ -823,6 +830,40 @@ export default function PlansWorkspace() {
                 }
               })
 
+              const localSessionIds = new Set(updatedWeeks.flatMap((week) => week.sessions).map((session) => session.id))
+              const remoteOnlyEvents = checkPayload.events.filter(
+                (event): event is RemotePlanEventSnapshot & { sessionId: string } =>
+                  typeof event.sessionId === 'string' && !localSessionIds.has(event.sessionId)
+              )
+              if (remoteOnlyEvents.length > 0) {
+                const sessionsByWeek = new Map(updatedWeeks.map((week) => [week.weekNumber, [...week.sessions]]))
+                for (const remoteEvent of remoteOnlyEvents) {
+                  const coordinates = getPlanCoordinatesForDateForSync(currentPlan, parseCalendarDate(remoteEvent.date))
+                  const sessions = coordinates ? sessionsByWeek.get(coordinates.weekNumber) : undefined
+                  if (!coordinates || !sessions) continue
+                  const sameDateIndex = sessions.findIndex((session) => formatDateInput(session.date) === remoteEvent.date)
+                  if (sameDateIndex >= 0) {
+                    if (sessions[sameDateIndex].duration === 0 || sessions[sameDateIndex].type === 'recovery') {
+                      sessions[sameDateIndex] = createSessionFromRemoteEvent(remoteEvent, coordinates.dayOfWeek)
+                    }
+                    continue
+                  }
+                  sessions.push(createSessionFromRemoteEvent(remoteEvent, coordinates.dayOfWeek))
+                }
+                updatedWeeks = updatedWeeks.map((week) => {
+                  const sessions = (sessionsByWeek.get(week.weekNumber) || week.sessions).sort(
+                    (left, right) => new Date(left.date).getTime() - new Date(right.date).getTime()
+                  )
+                  return { ...week, sessions, totalHours: sessions.reduce((sum, session) => sum + session.duration / 60, 0) }
+                })
+                planAfterDeletions = { ...currentPlan, weeks: updatedWeeks, updatedAt: new Date() }
+                await storage.updatePlan(planAfterDeletions.id, planAfterDeletions)
+                setPlan(planAfterDeletions)
+                setCurrentPlan(planAfterDeletions)
+                setPlanDiff(null)
+                setSyncMessage(`Recovered ${remoteOnlyEvents.length} remote session(s) into the calendar.`)
+              }
+
               if (hasPlanMutations) {
                 planAfterDeletions = { ...currentPlan, weeks: updatedWeeks, updatedAt: new Date() }
                 await storage.updatePlan(planAfterDeletions.id, planAfterDeletions)
@@ -864,6 +905,30 @@ export default function PlansWorkspace() {
                 shouldForcePlanPush = true
                 missingRemoteSessionCount = missingRemoteSessions.length
               }
+
+              // A matching prefix can still represent only a partial remote plan.
+              // Fetch the grouped backup when the prefix count is no larger than
+              // the local count, then prefer the complete remote copy if it has
+              // additional sessions or weeks.
+              if (checkPayload.matchCount <= localTrainableSessions.length) {
+                const backupResult = await fetchPlansFromIntervals()
+                const matchingRemotePlan = backupResult.plans
+                  .filter((remotePlan) => normalizePlanName(remotePlan.name) === normalizePlanName(currentPlan.name))
+                  .filter((remotePlan) => plansHaveDateOverlap(currentPlan, remotePlan))
+                  .sort((left, right) => countTrainableSessions(right) - countTrainableSessions(left))[0]
+
+                if (matchingRemotePlan && countTrainableSessions(matchingRemotePlan) > countTrainableSessions(currentPlan)) {
+                  planAfterDeletions = mergeRemotePlanSessions(currentPlan, matchingRemotePlan)
+                  await storage.updatePlan(planAfterDeletions.id, planAfterDeletions)
+                  setPlan(planAfterDeletions)
+                  setCurrentPlan(planAfterDeletions)
+                  setPlanDiff(null)
+                  setChangedSessions(new Set())
+                  setSyncMessage(`Recovered ${countTrainableSessions(matchingRemotePlan)} remote session(s) into the calendar.`)
+                  shouldForcePlanPush = false
+                  missingRemoteSessionCount = 0
+                }
+              }
             } else if (checkPayload.success && checkPayload.matchCount === 0) {
               const localTrainableCount = currentPlan.weeks
                 .flatMap((week) => week.sessions)
@@ -872,6 +937,26 @@ export default function PlansWorkspace() {
               if (localTrainableCount > 0) {
                 shouldForcePlanPush = true
                 missingRemoteSessionCount = localTrainableCount
+              }
+
+              // The local plan ID can become stale after a restore, browser reset,
+              // or an earlier replacement sync. Recover the complete matching plan
+              // by name/date so remote future sessions are not silently discarded.
+              const backupResult = await fetchPlansFromIntervals()
+              const matchingRemotePlan = backupResult.plans
+                .filter((remotePlan) => normalizePlanName(remotePlan.name) === normalizePlanName(currentPlan.name))
+                .filter((remotePlan) => plansHaveDateOverlap(currentPlan, remotePlan))
+                .sort((left, right) => countTrainableSessions(right) - countTrainableSessions(left))[0]
+
+              if (matchingRemotePlan && countTrainableSessions(matchingRemotePlan) > localTrainableCount) {
+                planAfterDeletions = mergeRemotePlanSessions(currentPlan, matchingRemotePlan)
+                await storage.updatePlan(planAfterDeletions.id, planAfterDeletions)
+                setPlan(planAfterDeletions)
+                setCurrentPlan(planAfterDeletions)
+                setPlanDiff(null)
+                setSyncMessage(`Recovered ${countTrainableSessions(matchingRemotePlan)} remote session(s) into the calendar.`)
+                shouldForcePlanPush = false
+                missingRemoteSessionCount = 0
               }
             }
           }
@@ -1116,6 +1201,76 @@ export default function PlansWorkspace() {
     userProfile,
   ])
 
+  useEffect(() => {
+    if (!intervalsCredentials || !currentPlan || !userProfile) return
+    const syncKey = `${intervalsCredentials.athleteId}:${currentPlan.id}`
+    if (initialRemotePlanSyncRef.current === syncKey) return
+    initialRemotePlanSyncRef.current = syncKey
+    void performIntervalsSync()
+  }, [currentPlan, intervalsCredentials, performIntervalsSync, userProfile])
+
+  const handleCalendarVisibleRangeChange = useCallback(async (oldest: string, newest: string) => {
+    if (!currentPlan?.externalPlanId || !intervalsCredentials) return
+
+    try {
+      const response = await fetch('/api/intervals/plans/check', {
+        method: 'POST',
+        headers: await buildIntervalsCredentialHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ externalPlanId: currentPlan.externalPlanId, oldest, newest }),
+      })
+      if (!response.ok) return
+
+      const payload = (await response.json()) as {
+        success: boolean
+        events?: RemotePlanEventSnapshot[]
+      }
+      if (!payload.success || !payload.events?.length) return
+
+      const eventsBySessionId = new Map(payload.events.filter((event) => event.sessionId).map((event) => [event.sessionId as string, event]))
+      const eventsByDate = new Map(payload.events.map((event) => [event.date, event]))
+      let changed = false
+      const weeks = currentPlan.weeks.map((week) => ({
+        ...week,
+        sessions: week.sessions.map((session) => {
+          const date = formatDateInput(session.date)
+          const event = eventsBySessionId.get(session.id) || eventsByDate.get(date)
+          if (!event) return session
+          changed = true
+          return applyRemoteEventToSession(session, event)
+        }),
+      }))
+
+      const existingIds = new Set(weeks.flatMap((week) => week.sessions).map((session) => session.id))
+      for (const event of payload.events) {
+        if (!event.sessionId || existingIds.has(event.sessionId)) continue
+        const coordinates = getPlanCoordinatesForDateForSync(currentPlan, parseCalendarDate(event.date))
+        const week = coordinates ? weeks.find((item) => item.weekNumber === coordinates.weekNumber) : undefined
+        if (!coordinates || !week) continue
+        const existingDate = week.sessions.find((session) => formatDateInput(session.date) === event.date)
+        if (existingDate && existingDate.duration > 0 && existingDate.type !== 'recovery') continue
+        if (existingDate) {
+          week.sessions = week.sessions.map((session) => session === existingDate ? createSessionFromRemoteEvent(event as RemotePlanEventSnapshot & { sessionId: string }, coordinates.dayOfWeek) : session)
+        } else {
+          week.sessions = [...week.sessions, createSessionFromRemoteEvent(event as RemotePlanEventSnapshot & { sessionId: string }, coordinates.dayOfWeek)]
+        }
+        existingIds.add(event.sessionId)
+        changed = true
+      }
+
+      if (!changed) return
+      const nextPlan = {
+        ...currentPlan,
+        weeks: weeks.map((week) => ({ ...week, totalHours: week.sessions.reduce((sum, session) => sum + session.duration / 60, 0) })),
+        updatedAt: new Date(),
+      }
+      await storage.updatePlan(nextPlan.id, nextPlan)
+      setPlan(nextPlan)
+      setCurrentPlan(nextPlan)
+    } catch (error) {
+      console.warn('Unable to hydrate visible calendar range from Intervals.icu', { error, oldest, newest })
+    }
+  }, [currentPlan, intervalsCredentials])
+
   const syncPlanWithIntervals = useCallback(
     async (mode: PlanSyncMode, planToSync: TrainingPlan) => {
       const response = await fetch('/api/intervals/plans', {
@@ -1172,6 +1327,7 @@ export default function PlansWorkspace() {
           dailyProteinTargetGrams: profile.dailyProteinTargetGrams ?? athleteTemplate.dailyProteinTargetGrams,
           dailyCarbTargetGrams: profile.dailyCarbTargetGrams ?? athleteTemplate.dailyCarbTargetGrams,
           dailyFatTargetGrams: profile.dailyFatTargetGrams ?? athleteTemplate.dailyFatTargetGrams,
+          injuries: profile.injuries ?? [],
           planStartDate: profile.planStartDate || formatDateInput(new Date()),
           desiredPlanWeeks: profile.desiredPlanWeeks || 12,
           ftpIncreaseTargetWatts: profile.ftpIncreaseTargetWatts,
@@ -1222,6 +1378,12 @@ export default function PlansWorkspace() {
           intervalsInsights,
           blockedDates,
         })
+        // Intervals.icu has a hard 20-events-per-day limit. A newly created
+        // active plan replaces the current active schedule rather than adding
+        // a duplicate schedule on top of it.
+        if (currentPlan) {
+          generatedPlan.externalPlanId = currentPlan.externalPlanId || currentPlan.id
+        }
         let finalPlan = generatedPlan
 
         generatedPlan.mealSuggestions = await generateMealSuggestionsWithApi(generatedPlan.durationWeeks, {
@@ -1232,7 +1394,7 @@ export default function PlansWorkspace() {
         await storage.savePlan(generatedPlan, true)
 
         try {
-          const syncResult = await syncPlanWithIntervals('upsert', generatedPlan)
+          const syncResult = await syncPlanWithIntervals('replace', generatedPlan)
 
           if (syncResult.success) {
             const syncedPlan: TrainingPlan = {
@@ -1274,6 +1436,8 @@ export default function PlansWorkspace() {
         }
       } catch (error) {
         console.error('Failed to create plan', { error })
+        setSyncMessage(`Plan creation failed: ${toErrorMessage(error)}`)
+        throw error
       } finally {
         setLoading(false)
       }
@@ -1603,6 +1767,72 @@ export default function PlansWorkspace() {
     }
   }, [currentPlan, refreshStoredPlans, syncPlanWithIntervals])
 
+  const handleDeleteCoachSession = useCallback(async (weekNumber: number, dayOfWeek: number) => {
+    if (!currentPlan) return
+
+    const nextPlan: TrainingPlan = {
+      ...currentPlan,
+      weeks: currentPlan.weeks.map((week) => {
+        if (week.weekNumber !== weekNumber) return week
+        const sessions = week.sessions.filter((session) => session.dayOfWeek !== dayOfWeek)
+        return { ...week, sessions, totalHours: sessions.reduce((sum, session) => sum + session.duration / 60, 0) }
+      }),
+    }
+
+    setLoading(true)
+    try {
+      const syncResult = await syncPlanWithIntervals('replace', nextPlan)
+      const syncedPlan = syncResult.success
+        ? { ...nextPlan, intervalsSync: { syncedAt: new Date().toISOString() } }
+        : nextPlan
+      await storage.updatePlan(syncedPlan.id, syncedPlan)
+      setPlan(syncedPlan)
+      setCurrentPlan(syncedPlan)
+      setPlanDiff(null)
+      setChangedSessions(new Set())
+      setSyncMessage(syncResult.success ? 'Coach removed the session and synced the plan' : 'Session removed locally; sync needs attention')
+      await refreshStoredPlans()
+    } catch (error) {
+      setSyncMessage(`Session removal failed: ${toErrorMessage(error)}`)
+    } finally {
+      setLoading(false)
+    }
+  }, [currentPlan, refreshStoredPlans, syncPlanWithIntervals])
+
+  const handleDeleteFutureCoachSessions = useCallback(async () => {
+    if (!currentPlan) return
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const nextPlan = {
+      ...currentPlan,
+      weeks: currentPlan.weeks.map((week) => {
+        const sessions = week.sessions.map((session) => {
+          const sessionDate = new Date(session.date)
+          sessionDate.setHours(0, 0, 0, 0)
+          return sessionDate > today && session.type !== 'recovery' ? toRestDayFromRemoval(session) : session
+        })
+        return { ...week, sessions, totalHours: sessions.reduce((sum, session) => sum + session.duration / 60, 0) }
+      }),
+      updatedAt: new Date(),
+    }
+    setLoading(true)
+    try {
+      const syncResult = await syncPlanWithIntervals('replace', nextPlan)
+      const savedPlan = syncResult.success ? { ...nextPlan, intervalsSync: { syncedAt: new Date().toISOString() } } : nextPlan
+      await storage.updatePlan(savedPlan.id, savedPlan)
+      setPlan(savedPlan)
+      setCurrentPlan(savedPlan)
+      setPlanDiff(null)
+      setChangedSessions(new Set())
+      setSyncMessage(syncResult.success ? 'Future sessions removed and plan synced' : 'Future sessions removed locally; sync needs attention')
+      await refreshStoredPlans()
+    } catch (error) {
+      setSyncMessage(`Future session removal failed: ${toErrorMessage(error)}`)
+    } finally {
+      setLoading(false)
+    }
+  }, [currentPlan, refreshStoredPlans, syncPlanWithIntervals])
+
   const handleSessionMove = useCallback(
     (
       source: { weekNumber: number; dayOfWeek: number },
@@ -1849,11 +2079,11 @@ export default function PlansWorkspace() {
     <div className={styles.section}>
       <div className={styles.sectionHeaderRow}>
         <div>
-          <h2>Saved Plans</h2>
-          <p className={styles.sectionHint}>Named plans stay listed here so you can open or delete them without losing track of the calendar.</p>
+          <h2>{translateText('Saved Plans')}</h2>
+          <p className={styles.sectionHint}>{translateText('Named plans stay listed here so you can open or delete them without losing track of the calendar.')}</p>
         </div>
         <button className={styles.syncBtn} onClick={handleDeleteAllPlans} disabled={loading || storedPlans.length === 0}>
-          Delete All Plans
+          {translateText('Delete All Plans')}
         </button>
       </div>
       <div className={styles.savedPlansList}>
@@ -1864,19 +2094,19 @@ export default function PlansWorkspace() {
           >
             <div>
               <strong>{storedPlan.plan.name}</strong>
-              <p>Goal: {storedPlan.plan.goal.replace('_', ' ')}</p>
-              <p>Start: {formatDateInput(storedPlan.plan.startDate)} • {storedPlan.plan.durationWeeks} weeks</p>
-              <p>Updated: {new Date(storedPlan.updatedAt).toLocaleString()}</p>
+                <p>{translateText('Goal')}: {storedPlan.plan.goal.replace('_', ' ')}</p>
+              <p>{translateText('Start')}: {formatDateInput(storedPlan.plan.startDate)} • {storedPlan.plan.durationWeeks} {isPortuguese ? 'semanas' : 'weeks'}</p>
+              <p>{translateText('Updated')}: {new Date(storedPlan.updatedAt).toLocaleString()}</p>
             </div>
             <div className={styles.savedPlanActions}>
               <button className={styles.syncBtn} onClick={() => handleSelectPlan(storedPlan.id)}>
-                {currentPlan?.id === storedPlan.id ? 'Open Now' : 'Open'}
+                {translateText(currentPlan?.id === storedPlan.id ? 'Open Now' : 'Open')}
               </button>
               <button className={styles.syncBtn} onClick={() => handleDuplicatePlan(storedPlan.id)}>
-                Duplicate
+                {translateText('Duplicate')}
               </button>
               <button className={styles.syncBtn} onClick={() => handleDeletePlan(storedPlan.id)}>
-                Delete
+                {translateText('Delete')}
               </button>
             </div>
           </div>
@@ -1891,12 +2121,10 @@ export default function PlansWorkspace() {
         <div className={styles.planHeader}>
           <div className={styles.headerLeft}>
             <div className={styles.planTitleBlock}>
-              <h1 title={currentPlan.name}>{currentPlan.name}</h1>
-              <p title={`${currentPlan.durationWeeks} weeks • ${currentPlan.goal.replace('_', ' ')}`}>
-                {currentPlan.durationWeeks} weeks • {currentPlan.goal.replace('_', ' ')}
-              </p>
+              <h1 title={currentPlan.name}>Coach</h1>
+              <p>Ask for anything about your training</p>
             </div>
-            <section className={styles.plannerStrategyCard} aria-label="Planner strategy summary">
+            <section className={styles.plannerStrategyCard} aria-label="Planner strategy summary" hidden>
               <h3>Planner Strategy</h3>
               <div className={styles.plannerStrategyChips}>
                 <span
@@ -1934,7 +2162,7 @@ export default function PlansWorkspace() {
             </section>
           </div>
 
-          <div className={styles.headerRight}>
+          <div className={styles.headerRight} hidden>
             <div className={styles.syncStatus}>
               <span className={styles.syncLabel}>
                 {lastSyncTime ? `Last sync: ${new Date(lastSyncTime).toLocaleTimeString()}` : 'Not synced yet'}
@@ -2029,29 +2257,14 @@ export default function PlansWorkspace() {
           </div>
         )}
 
-        <section className={styles.section}>
-          <div className={styles.sectionHeaderRow}>
-            <div>
-              <h2>Create Another Plan</h2>
-              <p className={styles.sectionHint}>Start a new plan in a separate flow without mixing creation controls into the active plan workspace.</p>
-            </div>
-            <button onClick={() => setCurrentPlan(null)} className={styles.syncBtn}>
-              Open Create Plan
-            </button>
-          </div>
-        </section>
-
-        {renderPlanLibrary()}
-
         <nav className={styles.workspaceTabBar} aria-label="Plan workspace sections">
-          {(['today', 'calendar', 'season', 'summary', 'analytics', 'exports'] as const).map((tab) => {
+          {(['coach', 'calendar', 'season', 'analytics', 'exports'] as const).map((tab) => {
             const LABELS: Record<typeof tab, string> = {
-              today: 'Today',
-              calendar: 'Calendar',
-              season: 'Season',
-              summary: 'Summary',
-              analytics: 'Progress',
-              exports: 'Exports',
+              coach: 'Coach',
+              calendar: t('calendar'),
+              season: t('season'),
+              analytics: t('progress'),
+              exports: t('exports'),
             }
             return (
               <button
@@ -2062,10 +2275,9 @@ export default function PlansWorkspace() {
                 aria-selected={activeWorkspaceTab === tab}
               >
                 <span className={styles.workspaceTabIcon}>
-                  {tab === 'today' && <SunIcon size={18} />}
+                  {tab === 'coach' && <span aria-hidden="true">✦</span>}
                   {tab === 'calendar' && <CalendarIcon size={18} />}
                   {tab === 'season' && <LayersIcon size={18} />}
-                  {tab === 'summary' && <CompassIcon size={18} />}
                   {tab === 'analytics' && <ChartIcon size={18} />}
                   {tab === 'exports' && <DownloadIcon size={18} />}
                 </span>
@@ -2075,28 +2287,23 @@ export default function PlansWorkspace() {
           })}
         </nav>
 
-        {/* Today tab — coach-first daily workflow */}
-        {activeWorkspaceTab === 'today' && (
-          <div className={styles.tabContent}>
+        {activeWorkspaceTab === 'coach' && (
+          <>
             <CoachToday
               plan={currentPlan}
               userProfile={userProfile ?? undefined}
-              readiness={todayReadiness}
-              onSaveReadiness={async (entry) => {
-                await storage.saveDailyReadiness(entry)
-                setTodayReadiness(entry)
-              }}
               onOpenCalendar={() => setActiveWorkspaceTab('calendar')}
-              onOpenAnalytics={() => setActiveWorkspaceTab('analytics')}
               onShowNutrition={() => setShowNutrition(true)}
-              onLogSession={(weekNumber, session) => setCompletionModalSession({ session, weekNumber })}
               onEditSession={handleEditSession}
               onApplyCoachChange={handleApplyCoachChange}
+              onDeleteCoachSession={handleDeleteCoachSession}
+              onDeleteFutureCoachSessions={handleDeleteFutureCoachSessions}
+              onCreatePlan={handleCreatePlan}
               recentRides={intervalsRideData}
               completions={planCompletions}
             />
             {showNutrition && <DailyNutritionGuide plan={currentPlan} meals={currentPlan.mealSuggestions} />}
-          </div>
+          </>
         )}
 
         {/* Calendar tab */}
@@ -2114,7 +2321,7 @@ export default function PlansWorkspace() {
             )}
             <div className={styles.calendarSection}>
               <div className={styles.calendarHeader}>
-                <h2>Training Calendar</h2>
+                <h2>{t('trainingCalendar')}</h2>
                 <button
                   type="button"
                   className={styles.zonePillBtn}
@@ -2143,6 +2350,7 @@ export default function PlansWorkspace() {
                 fatigueDetailsByDate={calendarFatigueDetailsByDate}
                 plannedEvents={userProfile?.plannedEvents || []}
                 autoScrollToTodaySignal={calendarAutoScrollSignal}
+                onVisibleRangeChange={handleCalendarVisibleRangeChange}
               />
             </div>
           </div>
@@ -2346,50 +2554,12 @@ export default function PlansWorkspace() {
   }
   return (
     <div className={styles.container}>
-      <div className={styles.hero}>
-        <h1>Cycling AI Training Plans</h1>
-        <p>Create personalized training plans integrated with Intervals.icu ride data.</p>
-        <div className={styles.heroActions}>
-          <Link className={styles.syncBtn} href="/profile">
-            Set up athlete details
-          </Link>
-        </div>
-      </div>
-
-      <div className={styles.features}>
-        <div className={styles.feature}>
-          <span className={styles.icon}>Personalized</span>
-          <h3>Adaptive Plan</h3>
-          <p>Generate a structured plan based on your availability, goals, and equipment.</p>
-        </div>
-        <div className={styles.feature}>
-          <span className={styles.icon}>Intervals</span>
-          <h3>Auto Sync</h3>
-          <p>Sync changes from Intervals.icu and keep your progression metrics updated automatically.</p>
-        </div>
-        <div className={styles.feature}>
-          <span className={styles.icon}>Insights</span>
-          <h3>Progress</h3>
-          <p>Track edits, sync behavior, and exported artifacts through the dashboard.</p>
-        </div>
-      </div>
-
-      <UserProfileForm
-        key={`plan-create-${userProfile?.id || 'default'}-${new Date((userProfile?.updatedAt as unknown as string | number | Date) || 0).getTime()}`}
-        onSubmit={handleCreatePlan}
-        loading={loading}
-        initialProfile={buildPlanCreationDraft(userProfile)}
-        title="Start Your Coaching Plan"
-        submitLabel="Start Coaching"
-        showPlanInputs={true}
-        showAthleteDetails={false}
-        compactCreation={true}
-      />
+      <PlanCoachChat onCreatePlan={handleCreatePlan} loading={loading} />
 
       {storedPlans.length === 0 && (
         <div className={styles.section}>
-          <h2>No Plans Yet</h2>
-          <p>Create your first plan above. Once saved, it will appear here and can be synced with Intervals.icu.</p>
+          <h2>{t('noPlansYet')}</h2>
+          <p>{t('createFirstPlan')} {t('noPlansDescription')}</p>
 
           {showBackupPlans && backupPlans.length > 0 && (
             <div className={styles.backupPlansSection}>
@@ -2419,9 +2589,6 @@ export default function PlansWorkspace() {
         </div>
       )}
 
-      {storedPlans.length > 0 && (
-        renderPlanLibrary()
-      )}
     </div>
   )
 }
@@ -2655,6 +2822,42 @@ function countTrainableSessions(plan: TrainingPlan): number {
   return plan.weeks.flatMap((week) => week.sessions).filter((session) => session.duration > 0).length
 }
 
+function normalizePlanName(name: string): string {
+  return name.trim().replace(/\s+/g, ' ').toLocaleLowerCase()
+}
+
+function parseCalendarDate(value: string): Date {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!match) return new Date(value)
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+}
+
+function getPlanCoordinatesForDateForSync(plan: TrainingPlan, date: Date): { weekNumber: number; dayOfWeek: number } | null {
+  const start = parseCalendarDate(formatDateInput(plan.startDate))
+  const target = parseCalendarDate(formatDateInput(date))
+  const dayOffset = Math.floor((target.getTime() - start.getTime()) / (24 * 60 * 60 * 1000))
+  if (dayOffset < 0 || dayOffset >= plan.durationWeeks * 7) return null
+  return { weekNumber: Math.floor(dayOffset / 7) + 1, dayOfWeek: (dayOffset % 7) + 1 }
+}
+
+function createSessionFromRemoteEvent(remoteEvent: RemotePlanEventSnapshot & { sessionId: string }, dayOfWeek: number): TrainingSession {
+  const type = inferSessionTypeFromRemoteEvent('endurance', remoteEvent)
+  const duration = remoteEvent.movingTimeSeconds && remoteEvent.movingTimeSeconds > 0 ? Math.max(1, Math.round(remoteEvent.movingTimeSeconds / 60)) : 60
+  return {
+    id: remoteEvent.sessionId,
+    date: parseCalendarDate(remoteEvent.date),
+    dayOfWeek,
+    type,
+    duration,
+    intensity: mapIntensityBySessionType(type),
+    description: remoteEvent.description || remoteEvent.name || 'Workout',
+    focus: [],
+    equipment: [],
+    structuredWorkout: remoteEvent.description?.split('\n').map((line) => line.trim()).filter(Boolean) || [],
+    localUpdatedAt: remoteEvent.lastUpdatedAt,
+  }
+}
+
 function countTrainableSessionsAfterWeekOne(plan: TrainingPlan): number {
   return plan.weeks
     .filter((week) => week.weekNumber > 1)
@@ -2759,6 +2962,56 @@ function buildSyncErrorMessage(error?: string, details?: string): string {
   }
 
   return error || details || 'Failed to sync plan with Intervals.icu'
+}
+
+function plansHaveDateOverlap(left: TrainingPlan, right: TrainingPlan): boolean {
+  const leftStart = new Date(left.startDate).getTime()
+  const leftEnd = new Date(left.endDate).getTime()
+  const rightStart = new Date(right.startDate).getTime()
+  const rightEnd = new Date(right.endDate).getTime()
+
+  return leftStart <= rightEnd && rightStart <= leftEnd
+}
+
+function mergeRemotePlanSessions(localPlan: TrainingPlan, remotePlan: TrainingPlan): TrainingPlan {
+  const localSessionsById = new Map(localPlan.weeks.flatMap((week) => week.sessions).map((session) => [session.id, session]))
+  const weekCount = Math.max(localPlan.durationWeeks, remotePlan.durationWeeks)
+
+  const weeks = Array.from({ length: weekCount }, (_, index) => {
+    const weekNumber = index + 1
+    const localWeek = localPlan.weeks.find((week) => week.weekNumber === weekNumber)
+    const remoteWeek = remotePlan.weeks.find((week) => week.weekNumber === weekNumber)
+    const sessionsById = new Map<string, TrainingSession>()
+
+    for (const session of localWeek?.sessions || []) {
+      sessionsById.set(session.id, session)
+    }
+    for (const session of remoteWeek?.sessions || []) {
+      sessionsById.set(session.id, {
+        ...(localSessionsById.get(session.id) || session),
+        ...session,
+        localUpdatedAt: new Date().toISOString(),
+      })
+    }
+
+    const sessions = [...sessionsById.values()].sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime())
+    return {
+      ...(localWeek || remoteWeek || { weekNumber, phase: 'base' as const, focusPoints: [] }),
+      weekNumber,
+      sessions,
+      totalHours: sessions.reduce((sum, session) => sum + session.duration / 60, 0),
+    }
+  })
+
+  return {
+    ...localPlan,
+    externalPlanId: remotePlan.externalPlanId || remotePlan.id,
+    durationWeeks: weekCount,
+    endDate: remotePlan.endDate,
+    weeks,
+    intervalsSync: { syncedAt: new Date().toISOString() },
+    updatedAt: new Date(),
+  }
 }
 
 type RemotePlanEventSnapshot = {

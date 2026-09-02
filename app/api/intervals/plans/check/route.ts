@@ -2,6 +2,8 @@ import { getIntervalsConfigFromRequest, hasIntervalsConfig, intervalsRequest } f
 
 type PlanSyncCheckRequest = {
   externalPlanId: string
+  oldest?: string
+  newest?: string
 }
 
 type PlanSyncEventSnapshot = {
@@ -46,7 +48,7 @@ type IntervalsEvent = {
  */
 export async function POST(request: Request): Promise<Response> {
   try {
-    const { externalPlanId } = (await request.json()) as PlanSyncCheckRequest
+    const { externalPlanId, oldest, newest } = (await request.json()) as PlanSyncCheckRequest
 
     if (!externalPlanId) {
       return Response.json(
@@ -75,7 +77,8 @@ export async function POST(request: Request): Promise<Response> {
     let hasMore = true
 
     while (hasMore) {
-      const response = await intervalsRequest(`/api/v1/athlete/${config.athleteId}/events?limit=${pageSize}&offset=${offset}`, {}, config)
+      const range = oldest && newest ? `&oldest=${encodeURIComponent(oldest)}&newest=${encodeURIComponent(newest)}` : ''
+      const response = await intervalsRequest(`/api/v1/athlete/${config.athleteId}/events?limit=${pageSize}&offset=${offset}${range}`, {}, config)
       const page = (await response.json()) as IntervalsEvent[]
       events.push(...page)
 

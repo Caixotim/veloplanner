@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
-import { BikeIcon, CalendarIcon, HomeIcon, PlugIcon, UserIcon } from './components/icons/AppIcons'
-import { SettingsMenu } from './components/SettingsMenu'
+import { AppHeader } from './components/AppHeader'
+import { LocaleText } from './components/LocaleText'
+import { LocaleProvider } from './lib/i18n'
 import './globals.css'
 import './print.css'
 
@@ -42,41 +42,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 })();`,
           }}
         />
-        <header className="header">
-          <div className="container">
-            <div className="logo">
-              <BikeIcon size={20} className="logoIcon" />
-              VeloPlanner
-            </div>
-            <nav className="nav">
-              <Link href="/" className="navButton navSimpleButton">
-                <HomeIcon size={16} className="navIcon" />
-                Overview
-              </Link>
-              <Link href="/plans" className="navButton">
-                <CalendarIcon size={16} className="navIcon" />
-                Coach
-              </Link>
-              <Link href="/integrations" className="navButton">
-                <PlugIcon size={16} className="navIcon" />
-                Connect data
-              </Link>
-              <Link href="/profile" className="navButton">
-                <UserIcon size={16} className="navIcon" />
-                Athlete
-              </Link>
-              <SettingsMenu />
-            </nav>
-            <Link href="/integrations" className="mobileIntegrationsQuickLink" aria-label="Open integrations">
-              <PlugIcon size={16} className="navIcon" />
-              Connect data
-            </Link>
-          </div>
-        </header>
+        <LocaleProvider>
+        <AppHeader />
         <main>{children}</main>
         <footer className="footer">
-          <p>&copy; 2026 VeloPlanner. All rights reserved.</p>
+          <p>&copy; 2026 VeloPlanner. <LocaleText>All rights reserved.</LocaleText></p>
         </footer>
+        </LocaleProvider>
       </body>
     </html>
   )

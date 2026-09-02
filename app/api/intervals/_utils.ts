@@ -54,30 +54,57 @@ export async function intervalsRequest(path: string, init: RequestInit = {}, con
     cache: 'no-store',
   }
 
-  let response: Response
+  const maxAttempts = 4
 
-  try {
-    response = await fetch(targetUrl, fetchOptions)
-  } catch (error) {
-    const causeMessage =
-      error instanceof Error && 'cause' in error && (error as Error & { cause?: { message?: string } }).cause
-        ? (error as Error & { cause?: { message?: string } }).cause?.message
-        : undefined
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    let response: Response
 
-    throw new Error(
-      `Intervals fetch transport failed: ${error instanceof Error ? error.message : 'Unknown error'}${
-        causeMessage ? ` (cause: ${causeMessage})` : ''
-      }`
-    )
+    try {
+      response = await fetch(targetUrl, fetchOptions)
+    } catch (error) {
+      const causeMessage =
+        error instanceof Error && 'cause' in error && (error as Error & { cause?: { message?: string } }).cause
+          ? (error as Error & { cause?: { message?: string } }).cause?.message
+          : undefined
+
+      throw new Error(
+        `Intervals fetch transport failed: ${error instanceof Error ? error.message : 'Unknown error'}${
+          causeMessage ? ` (cause: ${causeMessage})` : ''
+        }`
+      )
+    }
+
+    if (response.ok) {
+      return response
+    }
+
+    const isRetryable = response.status === 429 || response.status >= 500
+    if (!isRetryable || attempt === maxAttempts) {
+      const text = await response.text()
+      if (response.status === 422 && text.includes('Too many events')) {
+        console.warn('Intervals event date is at capacity', { path, status: response.status, body: text })
+      } else {
+        console.error('Intervals API request failed', { path, status: response.status, body: text })
+      }
+      throw new Error(`Intervals API failed (${response.status}): ${text.slice(0, 200)}`)
+    }
+
+    const retryAfter = parseRetryAfter(response.headers.get('retry-after'))
+    const delayMs = retryAfter ?? Math.min(8_000, 500 * 2 ** (attempt - 1))
+    console.warn('Intervals API request throttled; retrying', { path, status: response.status, attempt, delayMs })
+    await new Promise((resolve) => setTimeout(resolve, delayMs))
   }
 
-  if (!response.ok) {
-    const text = await response.text()
-    console.error('Intervals API request failed', { path, status: response.status, body: text })
-    throw new Error(`Intervals API failed (${response.status}): ${text.slice(0, 200)}`)
-  }
+  throw new Error('Intervals API request exhausted its retry attempts')
+}
 
-  return response
+function parseRetryAfter(value: string | null): number | undefined {
+  if (!value) return undefined
+  const seconds = Number(value)
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(10_000, seconds * 1_000)
+  const date = Date.parse(value)
+  if (Number.isNaN(date)) return undefined
+  return Math.min(10_000, Math.max(0, date - Date.now()))
 }
 
 export function toLocalIsoDate(value: Date | number): string {

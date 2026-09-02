@@ -1,6 +1,7 @@
 import type { TrainingPlan, TrainingSession } from '@/app/lib/types'
 import { getIntervalsConfigFromRequest, hasIntervalsConfig, intervalsRequest, toLocalIsoDate } from '../_utils'
 
+export const maxDuration = 120
 
 type PlanSyncMode = 'upsert' | 'replace' | 'delete'
 
@@ -56,12 +57,20 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     if (mode === 'replace') {
+      try {
+        await deleteAllVeloPlannerEvents(config.athleteId, config)
+      } catch (error) {
+        console.warn('Unable to remove all stale VeloPlanner events before replacement', { error })
+      }
       await deletePlanEvents(config.athleteId, externalPlanId, sessions, config)
     }
 
     const syncedEventIds: number[] = []
     const failedSessionIds: string[] = []
-    const BATCH_SIZE = 10
+    const capacityFailedSessionIds = new Set<string>()
+    // Intervals.icu applies a strict write rate limit. Limited concurrency avoids
+    // a burst without making a full-plan sync exceed the route timeout.
+    const BATCH_SIZE = 4
     const allSessions: Array<{ week: number; session: TrainingSession }> = []
 
     // Flatten all sessions across weeks
@@ -73,9 +82,18 @@ export async function POST(request: Request): Promise<Response> {
       }
     }
 
+    const saturatedDates = await findSaturatedEventDates(config.athleteId, allSessions, config)
+    const sessionsToSync = allSessions.filter(({ session }) => !saturatedDates.has(toLocalIsoDate(toDate(session.date))))
+    if (saturatedDates.size > 0) {
+      console.warn('Skipping sessions on Intervals.icu saturated dates', { dates: [...saturatedDates], skipped: allSessions.length - sessionsToSync.length })
+    }
+
     // Process sessions in batches to improve reliability on mobile connections
-    for (let i = 0; i < allSessions.length; i += BATCH_SIZE) {
-      const batch = allSessions.slice(i, i + BATCH_SIZE)
+    for (let i = 0; i < sessionsToSync.length; i += BATCH_SIZE) {
+      if (i > 0) {
+        await wait(500)
+      }
+      const batch = sessionsToSync.slice(i, i + BATCH_SIZE)
 
       const promises = batch.map(async ({ week, session }) => {
         try {
@@ -85,7 +103,12 @@ export async function POST(request: Request): Promise<Response> {
             eventId: created.id || null,
           }
         } catch (error) {
-          console.warn(`Failed to sync session in batch: ${session.id}`, { error })
+          if (isIntervalsCapacityError(error)) {
+            capacityFailedSessionIds.add(session.id)
+            console.warn('Skipping session because Intervals.icu date is full', { sessionId: session.id, date: toLocalIsoDate(toDate(session.date)) })
+          } else {
+            console.warn(`Failed to sync session in batch: ${session.id}`, { error })
+          }
           return {
             sessionId: session.id,
             eventId: null,
@@ -108,10 +131,11 @@ export async function POST(request: Request): Promise<Response> {
     // Retry failed sessions one-by-one to recover from transient API/network issues.
     if (failedSessionIds.length > 0) {
       const failedSet = new Set(failedSessionIds)
-      const retrySessions = allSessions.filter(({ session }) => failedSet.has(session.id))
+      const retrySessions = sessionsToSync.filter(({ session }) => failedSet.has(session.id) && !capacityFailedSessionIds.has(session.id))
       failedSessionIds.length = 0
 
       for (const { week, session } of retrySessions) {
+        await wait(1_000)
         try {
           const created = await upsertIntervalsSession(config, plan, externalPlanId, week, session, { minimalPayload: true })
           if (created.id) {
@@ -120,8 +144,19 @@ export async function POST(request: Request): Promise<Response> {
             failedSessionIds.push(session.id)
           }
         } catch (retryError) {
-          console.warn(`Retry failed for session: ${session.id}`, { retryError })
+          if (isIntervalsCapacityError(retryError)) {
+            capacityFailedSessionIds.add(session.id)
+            console.warn('Skipping retry because Intervals.icu date is full', { sessionId: session.id, date: toLocalIsoDate(toDate(session.date)) })
+          } else {
+            console.warn(`Retry failed for session: ${session.id}`, { retryError })
+          }
           failedSessionIds.push(session.id)
+        }
+      }
+
+      for (const sessionId of capacityFailedSessionIds) {
+        if (!failedSessionIds.includes(sessionId)) {
+          failedSessionIds.push(sessionId)
         }
       }
     }
@@ -211,6 +246,54 @@ async function deletePlanEvents(
   return bulkDeleteByExternalIds(athleteId, [...matchingIds], config)
 }
 
+async function deleteAllVeloPlannerEvents(
+  athleteId: string,
+  config: { apiKey: string; athleteId: string; baseUrl: string }
+): Promise<number> {
+  const externalIds: string[] = []
+  for (let page = 0; page < 20; page++) {
+    const response = await intervalsRequest(`/api/v1/athlete/${athleteId}/events?limit=500&offset=${page * 500}`, {}, config)
+    const events = (await response.json()) as Array<{ external_id?: string; name?: string }>
+    externalIds.push(...events
+      .filter((event) => event.external_id && (event.name?.includes('[AI]') || event.external_id.startsWith('plan_')))
+      .map((event) => event.external_id as string))
+    if (events.length < 500) break
+  }
+
+  let deleted = 0
+  for (let index = 0; index < externalIds.length; index += 100) {
+    deleted += await bulkDeleteByExternalIds(athleteId, externalIds.slice(index, index + 100), config)
+  }
+  if (deleted > 0) {
+    console.info('Removed stale VeloPlanner events before schedule replacement', { deleted })
+  }
+  return deleted
+}
+
+async function findSaturatedEventDates(
+  athleteId: string,
+  sessions: Array<{ session: TrainingSession }>,
+  config: { apiKey: string; athleteId: string; baseUrl: string }
+): Promise<Set<string>> {
+  try {
+    const wantedDates = new Set(sessions.map(({ session }) => toLocalIsoDate(toDate(session.date))))
+    const counts = new Map<string, number>()
+    for (let page = 0; page < 20; page++) {
+      const response = await intervalsRequest(`/api/v1/athlete/${athleteId}/events?limit=500&offset=${page * 500}`, {}, config)
+      const events = (await response.json()) as Array<{ start_date_local?: string; start_date?: string }>
+      for (const event of events) {
+        const date = (event.start_date_local || event.start_date || '').slice(0, 10)
+        if (wantedDates.has(date)) counts.set(date, (counts.get(date) || 0) + 1)
+      }
+      if (events.length < 500) break
+    }
+    return new Set([...counts.entries()].filter(([, count]) => count >= 20).map(([date]) => date))
+  } catch (error) {
+    console.warn('Unable to inspect Intervals.icu event capacity before sync', { error })
+    return new Set()
+  }
+}
+
 async function listPlanEventExternalIds(
   athleteId: string,
   externalPlanId: string,
@@ -235,6 +318,7 @@ async function listPlanEventExternalIds(
     if (events.length < pageSize) {
       break
     }
+
   }
 
   return [...matches]
@@ -242,6 +326,14 @@ async function listPlanEventExternalIds(
 
 function buildExternalEventId(externalPlanId: string, sessionId: string): string {
   return `${externalPlanId}:${sessionId}`
+}
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds))
+}
+
+function isIntervalsCapacityError(error: unknown): boolean {
+  return error instanceof Error && /Too many events.*max is 20/i.test(error.message)
 }
 
 async function upsertIntervalsSession(
@@ -253,6 +345,7 @@ async function upsertIntervalsSession(
   options: { minimalPayload?: boolean } = {}
 ): Promise<SyncedEvent> {
   const payload = buildIntervalsEventPayload(plan, externalPlanId, week, session, options)
+  await ensureDailyEventCapacity(config, session, payload.external_id as string)
   const response = await intervalsRequest(
     `/api/v1/athlete/${config.athleteId}/events?upsertOnUid=true`,
     {
@@ -263,6 +356,54 @@ async function upsertIntervalsSession(
   )
 
   return (await response.json()) as SyncedEvent
+}
+
+const MAX_EVENTS_PER_DAY = 5
+
+async function ensureDailyEventCapacity(
+  config: { apiKey: string; athleteId: string; baseUrl: string },
+  session: TrainingSession,
+  currentExternalId: string
+): Promise<void> {
+  const date = toLocalIsoDate(toDate(session.date))
+  const response = await intervalsRequest(
+    `/api/v1/athlete/${config.athleteId}/events?oldest=${date}&newest=${date}&limit=500`,
+    {},
+    config
+  )
+  const events = (await response.json()) as IntervalsEventForCapacity[]
+  const sameDayEvents = events.filter((event) => (event.start_date_local || event.start_date || '').startsWith(date))
+  const existingCurrentEvent = sameDayEvents.some((event) => event.external_id === currentExternalId || event.uid === currentExternalId)
+  const requiredRemovals = Math.max(0, sameDayEvents.length + (existingCurrentEvent ? 0 : 1) - MAX_EVENTS_PER_DAY)
+  if (requiredRemovals === 0) return
+
+  const removable = sameDayEvents
+    .filter((event) => event.external_id && event.external_id !== currentExternalId && (event.name?.includes('[AI]') || event.external_id.startsWith('plan_')))
+    .sort((left, right) => eventCreatedTimestamp(left) - eventCreatedTimestamp(right))
+    .slice(0, requiredRemovals)
+
+  if (removable.length < requiredRemovals) {
+    throw new Error(`Intervals.icu date ${date} already has ${sameDayEvents.length} events; cannot keep the app limit of ${MAX_EVENTS_PER_DAY} without deleting non-VeloPlanner events.`)
+  }
+
+  await bulkDeleteByExternalIds(config.athleteId, removable.map((event) => event.external_id as string), config)
+  console.info('Purged oldest VeloPlanner sessions to keep daily event limit', { date, deleted: removable.length })
+}
+
+type IntervalsEventForCapacity = {
+  id?: number
+  uid?: string
+  external_id?: string
+  name?: string
+  start_date?: string
+  start_date_local?: string
+  created?: string
+  created_at?: string
+}
+
+function eventCreatedTimestamp(event: IntervalsEventForCapacity): number {
+  const created = Date.parse(event.created_at || event.created || '')
+  return Number.isNaN(created) ? event.id || Number.MAX_SAFE_INTEGER : created
 }
 
 function buildIntervalsEventPayload(

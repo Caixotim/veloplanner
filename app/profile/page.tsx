@@ -10,6 +10,7 @@ import { generateMealSuggestionsWithApi } from '../lib/mealPlanner'
 import { buildIntervalsCredentialHeaders } from '../lib/integrationCredentials'
 import type { TrainingGoal, TrainingPlan, UserProfile } from '../lib/types'
 import styles from './page.module.scss'
+import { useLocale } from '../lib/i18n'
 
 type SaveStatus =
   | { kind: 'idle' }
@@ -19,6 +20,7 @@ type SaveStatus =
 type PlanSyncMode = 'upsert' | 'delete'
 
 export default function ProfilePage() {
+  const { translateText } = useLocale()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [linkedPlan, setLinkedPlan] = useState<StoredPlan | null>(null)
@@ -215,12 +217,12 @@ export default function ProfilePage() {
     <div className={styles.container}>
       <header className={styles.header}>
         <div>
-          <h1>Athlete Profile</h1>
-          <p>Manage rider data separately from plan inputs.</p>
+          <h1>{translateText('Athlete Profile')}</h1>
+          <p>{translateText('Manage rider data separately from plan inputs.')}</p>
         </div>
         <div className={styles.headerActions}>
-          <Link href="/" className={styles.backLink}>
-            Back to Plans
+          <Link href="/coach" className={styles.backLink}>
+            {translateText('Back to Coach')}
           </Link>
         </div>
       </header>
@@ -249,7 +251,7 @@ export default function ProfilePage() {
 
       {loading && (
         <section className={styles.section}>
-          <p>Loading profile...</p>
+          <p>{translateText('Loading profile...')}</p>
         </section>
       )}
 

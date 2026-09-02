@@ -70,6 +70,36 @@ describe('buildCoachGuidance', () => {
     expect(result?.shouldShowMetrics).toBeUndefined()
   })
 
+  it('proposes deletion inside the confirmation flow', () => {
+    const result = buildCoachGuidance({ question: 'Delete today’s workout', plan, session })
+
+    expect(result?.shouldDeleteSession).toBe(true)
+    expect(result?.shouldOpenEditor).toBe(false)
+  })
+
+  it('asks for a boundary before removing future sessions', () => {
+    const result = buildCoachGuidance({ question: 'Delete my future sessions', plan, session })
+
+    expect(result?.shouldDeleteSession).toBeUndefined()
+    expect(result?.answer).toContain('boundary')
+    expect(result?.answer).toContain('confirm')
+  })
+
+  it('recognizes European Portuguese future-session deletion', () => {
+    const result = buildCoachGuidance({ question: 'Você remove as sessões já marcadas futuras?', plan, session, locale: 'pt-PT' })
+
+    expect(result?.shouldDeleteFutureSessions).toBe(true)
+    expect(result?.answer).toContain('confirmação')
+  })
+
+  it('prepares a session request for an interactive proposal', () => {
+    const result = buildCoachGuidance({ question: 'Create a 45 minute strength session', plan, session })
+
+    expect(result?.suggestedSessionType).toBe('strength')
+    expect(result?.suggestedDurationMinutes).toBe(45)
+    expect(result?.answer).toContain('Review the workout details')
+  })
+
   it('explains the purpose of a session', () => {
     const result = buildCoachGuidance({ question: 'Why this workout?', plan, session })
 
