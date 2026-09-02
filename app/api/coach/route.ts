@@ -7,7 +7,7 @@ const MAX_QUESTION_LENGTH = 500
 
 export async function POST(request: Request) {
   const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434'
-  const ollamaModel = process.env.OLLAMA_MODEL || 'llama3.2:1b'
+  const ollamaModel = process.env.OLLAMA_MODEL || 'qwen3:4b'
 
   try {
     const body = (await request.json()) as {

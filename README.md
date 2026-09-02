@@ -50,7 +50,7 @@ They are stored per browser in local IndexedDB and are not required in `.env.loc
 
 ### Optional conversational coach
 
-The Coach workspace includes a local deterministic fallback and can optionally use a server-side AI provider for free-form responses. For a free private local model, install Ollama, pull `llama3.2:1b`, and set `OLLAMA_MODEL=llama3.2:1b` in `.env.local`. The `/api/coach` provider order is hosted OpenAI-compatible provider, Ollama, then deterministic local guidance. Intervals.icu data and the athlete configuration are compacted on the server request; the local model does not need direct access to Intervals.icu credentials.
+The Coach workspace includes a local deterministic fallback and can optionally use a server-side AI provider for free-form responses. For a free private local model, install Ollama, pull `qwen3:4b`, and set `OLLAMA_MODEL=qwen3:4b` in `.env.local`. The `/api/coach` route uses Ollama and falls back to deterministic local guidance when the model is unavailable. Intervals.icu data and the athlete configuration are compacted on the server request; the local model does not need direct access to Intervals.icu credentials.
 
 ### Vercel deployment
 
