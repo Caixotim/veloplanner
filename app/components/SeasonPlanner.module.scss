@@ -242,3 +242,48 @@
     font-size: 0.64rem;
   }
 }
+
+:global([data-theme='dark']) .wrapper,
+:global([data-theme='neon']) .wrapper {
+  color: var(--theme-text-primary);
+
+  h2,
+  h3,
+  h4 {
+    color: var(--theme-text-primary);
+  }
+
+  .header h2,
+  .yearHeader h3,
+  .planMeta strong {
+    color: var(--theme-text-primary);
+  }
+
+  .header p,
+  .yearHeader span,
+  .monthCell,
+  .emptyYear,
+  .planMeta span {
+    color: var(--theme-text-secondary);
+  }
+
+  .yearSection,
+  .planRow,
+  .eventLane {
+    background: var(--theme-surface-secondary);
+    border-color: var(--theme-border);
+  }
+
+  .monthCell,
+  .timelineTrack {
+    border-color: var(--theme-border);
+  }
+
+  .timelineTrack {
+    background: var(--theme-surface-tertiary);
+  }
+
+  .timelineBase {
+    background: var(--theme-border-strong);
+  }
+}

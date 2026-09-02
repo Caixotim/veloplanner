@@ -1017,42 +1017,44 @@ export default function TrainingCalendar({
                           )}
                         </div>
 
-                        {/* Log session button */}
-                        {!isPlaceholder && !isRest && weekNumber && dayOfWeek && onSessionLog && existingSession && (
-                          <button
-                            className={styles.logBtn}
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              onSessionLog(weekNumber, dayOfWeek, existingSession)
-                            }}
-                            title="Log session / RPE"
-                          >
-                            {completions.get(existingSession.id) ? '📝' : '○'}
-                          </button>
-                        )}
+                        <div className={styles.actionButtons}>
+                          {/* Log session button */}
+                          {!isPlaceholder && !isRest && weekNumber && dayOfWeek && onSessionLog && existingSession && (
+                            <button
+                              className={styles.logBtn}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                onSessionLog(weekNumber, dayOfWeek, existingSession)
+                              }}
+                              title="Log session / RPE"
+                            >
+                              {completions.get(existingSession.id) ? '📝' : '○'}
+                            </button>
+                          )}
 
-                        {/* Edit button */}
-                        {canEditCell && onSessionEdit && !isPlaceholder && weekNumber && dayOfWeek && (
-                          <button
-                            className={styles.editBtn}
-                            onClick={() => onSessionEdit(weekNumber, dayOfWeek, session)}
-                            title="Open full editor"
-                          >
-                            ✏️
-                          </button>
-                        )}
-                        {canViewCell && onSessionView && weekNumber && dayOfWeek && existingSession && (
-                          <button
-                            className={styles.viewBtn}
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              onSessionView(weekNumber, dayOfWeek, existingSession)
-                            }}
-                            title="View session details"
-                          >
-                            👁️
-                          </button>
-                        )}
+                          {/* Edit button */}
+                          {canEditCell && onSessionEdit && !isPlaceholder && weekNumber && dayOfWeek && (
+                            <button
+                              className={styles.editBtn}
+                              onClick={() => onSessionEdit(weekNumber, dayOfWeek, session)}
+                              title="Open full editor"
+                            >
+                              ✏️
+                            </button>
+                          )}
+                          {canViewCell && onSessionView && weekNumber && dayOfWeek && existingSession && (
+                            <button
+                              className={styles.viewBtn}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                onSessionView(weekNumber, dayOfWeek, existingSession)
+                              }}
+                              title="View session details"
+                            >
+                              👁️
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </td>
                   )

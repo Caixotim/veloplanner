@@ -141,6 +141,7 @@ body[data-theme="neobrutalism"] {
 
 html {
   scroll-behavior: smooth;
+  font-size: clamp(16px, calc(15px + 0.25vw), 18px);
 }
 
 body {
@@ -224,7 +225,7 @@ body {
 
   .nav {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.25rem;
   }
 
@@ -232,11 +233,18 @@ body {
     justify-content: center;
     border: 0;
     border-radius: 0.7rem;
+    min-height: 2.75rem;
     padding: 0.5rem 0.25rem;
-    font-size: 0.72rem;
+    font-size: 0.8rem;
   }
 
-  main { padding-bottom: 5rem; }
+  main {
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .footer {
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 .nav a {
@@ -377,6 +385,7 @@ textarea {
 
   main {
     padding: 1rem 0;
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
   }
 }
 

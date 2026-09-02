@@ -275,3 +275,36 @@
     }
   }
 }
+
+:global([data-theme='dark']) .dashboardContainer,
+:global([data-theme='neon']) .dashboardContainer {
+  h2,
+  h3,
+  h4 {
+    color: var(--theme-text-primary);
+  }
+
+  .eventsSection,
+  .metricsSection,
+  .eventItem,
+  .metricRow {
+    background: var(--theme-surface-secondary);
+    border-color: var(--theme-border);
+    color: var(--theme-text-primary);
+  }
+
+  .eventType,
+  .metricName,
+  .metricTime {
+    color: var(--theme-text-secondary);
+  }
+
+  .eventCount,
+  .metricValue {
+    color: var(--theme-accent);
+  }
+
+  .actions {
+    border-top-color: var(--theme-border);
+  }
+}

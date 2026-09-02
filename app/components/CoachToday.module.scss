@@ -93,7 +93,25 @@
 .primaryAction,
 .secondaryAction,
 .sessionCard button { border-radius: 7px; padding: 0.55rem 0.8rem; font-weight: 800; cursor: pointer; }
-.primaryAction { min-width: 7rem; border: 1px solid transparent; background: var(--theme-accent); color: white; }
+.primaryAction {
+  min-width: 7rem;
+  width: 7rem;
+  height: 3rem;
+  align-self: flex-start;
+  border: 1px solid var(--theme-border-light);
+  background: var(--theme-surface-hover);
+  color: var(--theme-text-secondary);
+  font-size: 1.1rem;
+  border-radius: 7px;
+  padding: 0.4rem 0.85rem;
+
+  &:hover:not(:disabled),
+  &:focus-visible {
+    background: var(--theme-surface-secondary);
+    border-color: var(--theme-accent);
+    color: var(--theme-text-primary);
+  }
+}
 .secondaryAction,
 .sessionCard button { border: 1px solid var(--theme-border-light); background: var(--theme-surface); color: var(--theme-text-primary); }
 
@@ -220,7 +238,7 @@
   .conversationCard { grid-template-columns: 1fr; }
   .promptList { justify-content: flex-start; }
   .coachInputRow { flex-direction: column; }
-  .coachInputRow .primaryAction { min-height: 2.9rem; }
+  .coachInputRow .primaryAction { align-self: stretch; }
   .conversationThread { min-height: min(58vh, 34rem); max-height: 62vh; gap: 1rem; padding-inline: 0.15rem; }
   .conversationThread > div { padding: 1rem 1.05rem; font-size: 1rem; }
   .coachInputCard > .promptList { margin-top: 1.75rem; margin-bottom: 1.25rem; padding-top: 1.35rem; gap: 0.7rem; }
@@ -228,7 +246,7 @@
   .coachInputHeader { margin-bottom: 1.25rem; }
   .coachInputCard label { font-size: 1.4rem; }
   .coachInputRow textarea { min-height: 12rem; padding: 1.1rem; font-size: 1.12rem; line-height: 1.6; }
-  .coachInputRow .primaryAction { min-width: 100%; min-height: 3.5rem; font-size: 1rem; }
+  .coachInputRow .primaryAction { width: 100%; height: 3.5rem; font-size: 1.1rem; }
   .proposalDetails { grid-template-columns: 1fr; }
 }
 

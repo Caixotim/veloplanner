@@ -319,3 +319,117 @@
     grid-template-columns: 1fr;
   }
 }
+
+:global([data-theme='dark']) .modal,
+:global([data-theme='neon']) .modal,
+:global([data-theme='glassmorphism']) .modal,
+:global([data-theme='neobrutalism']) .modal {
+  color: var(--theme-text-primary);
+  background: var(--theme-surface);
+  border-color: var(--theme-border);
+  box-shadow: 0 20px 54px var(--theme-card-shadow-strong);
+
+  .header,
+  .footer {
+    background: var(--theme-surface-secondary);
+    border-color: var(--theme-border);
+  }
+
+  .header h2,
+  .fieldLabel,
+  .sessionMeta,
+  .rpeMin,
+  .rpeMax {
+    color: var(--theme-text-primary);
+  }
+
+  .closeBtn,
+  .statusBtn,
+  .feelingBtn,
+  .btnCancel {
+    background: var(--theme-surface-secondary);
+    border-color: var(--theme-border);
+    color: var(--theme-text-secondary);
+  }
+
+  .closeBtn:hover,
+  .statusBtn:hover,
+  .feelingBtn:hover,
+  .btnCancel:hover {
+    background: var(--theme-surface-hover);
+    border-color: var(--theme-accent);
+    color: var(--theme-text-primary);
+  }
+
+  .sessionTitle {
+    border-bottom-color: var(--theme-border);
+  }
+
+  .sessionType,
+  .statusBtnActive,
+  .feelingBtnActive {
+    background: color-mix(in srgb, var(--theme-accent) 16%, var(--theme-surface));
+    border-color: var(--theme-accent);
+    color: var(--theme-accent);
+  }
+
+  .input,
+  .textarea {
+    background: var(--theme-surface-secondary);
+    border-color: var(--theme-border-light);
+    color: var(--theme-text-primary);
+
+    &:focus {
+      border-color: var(--theme-focus);
+      box-shadow: 0 0 0 3px var(--theme-focus-ring);
+    }
+  }
+
+  .rpeSlider {
+    accent-color: var(--theme-accent);
+  }
+
+  .rpeTick,
+  .rpeTickActive {
+    color: var(--theme-text-tertiary);
+  }
+
+  .rpeTickActive {
+    color: var(--theme-accent);
+  }
+
+  .status_skipped.statusBtnActive {
+    background: var(--theme-panel-warm-bg);
+    border-color: var(--theme-panel-warm-border);
+    color: var(--theme-panel-warm-text);
+  }
+
+  .status_partial.statusBtnActive {
+    background: var(--theme-panel-info-bg);
+    border-color: var(--theme-panel-info-border);
+    color: var(--theme-panel-info-text);
+  }
+
+  .btnDelete {
+    background: var(--theme-panel-warm-bg);
+    border-color: var(--theme-panel-warm-border);
+    color: var(--theme-panel-warm-text);
+  }
+
+  .btnSave {
+    background: var(--theme-accent);
+    color: var(--theme-bg-primary);
+
+    &:hover {
+      background: var(--theme-accent-secondary);
+      box-shadow: 0 4px 12px var(--theme-card-shadow-strong);
+    }
+  }
+}
+
+:global([data-theme='dark']) .overlay,
+:global([data-theme='neon']) .overlay,
+:global([data-theme='glassmorphism']) .overlay,
+:global([data-theme='neobrutalism']) .overlay {
+  background: color-mix(in srgb, var(--theme-bg-primary) 76%, transparent);
+}

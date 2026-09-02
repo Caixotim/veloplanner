@@ -1327,7 +1327,10 @@ export default function PlansWorkspace() {
           dailyProteinTargetGrams: profile.dailyProteinTargetGrams ?? athleteTemplate.dailyProteinTargetGrams,
           dailyCarbTargetGrams: profile.dailyCarbTargetGrams ?? athleteTemplate.dailyCarbTargetGrams,
           dailyFatTargetGrams: profile.dailyFatTargetGrams ?? athleteTemplate.dailyFatTargetGrams,
-          injuries: profile.injuries ?? [],
+          // Natural-language plan requests usually contain only plan inputs.
+          // Keep the stored athlete constraints unless the request explicitly
+          // provides a replacement injury list.
+          injuries: profile.injuries ?? athleteTemplate.injuries ?? [],
           planStartDate: profile.planStartDate || formatDateInput(new Date()),
           desiredPlanWeeks: profile.desiredPlanWeeks || 12,
           ftpIncreaseTargetWatts: profile.ftpIncreaseTargetWatts,
@@ -2257,7 +2260,8 @@ export default function PlansWorkspace() {
           </div>
         )}
 
-        <nav className={styles.workspaceTabBar} aria-label="Plan workspace sections">
+        <div className={styles.workspaceShell}>
+        <nav className={styles.workspaceTabBar} role="tablist" aria-label="Plan workspace sections">
           {(['coach', 'calendar', 'season', 'analytics', 'exports'] as const).map((tab) => {
             const LABELS: Record<typeof tab, string> = {
               coach: 'Coach',
@@ -2270,6 +2274,7 @@ export default function PlansWorkspace() {
               <button
                 key={tab}
                 type="button"
+                role="tab"
                 className={clsx(styles.workspaceTab, activeWorkspaceTab === tab && styles.workspaceTabActive)}
                 onClick={() => setActiveWorkspaceTab(tab)}
                 aria-selected={activeWorkspaceTab === tab}
@@ -2286,6 +2291,8 @@ export default function PlansWorkspace() {
             )
           })}
         </nav>
+
+        <div className={styles.workspaceMain}>
 
         {activeWorkspaceTab === 'coach' && (
           <>
@@ -2359,14 +2366,16 @@ export default function PlansWorkspace() {
         {/* Season tab */}
         {activeWorkspaceTab === 'season' && (
           <div className={styles.tabContent}>
-            <SeasonPlanner
-              storedPlans={storedPlans}
-              currentPlanId={currentPlan.id}
-              plannedEvents={userProfile?.plannedEvents || []}
-              onSelectPlan={(planId) => {
-                void handleSelectPlan(planId)
-              }}
-            />
+            <section className={styles.workspacePanel}>
+              <SeasonPlanner
+                storedPlans={storedPlans}
+                currentPlanId={currentPlan.id}
+                plannedEvents={userProfile?.plannedEvents || []}
+                onSelectPlan={(planId) => {
+                  void handleSelectPlan(planId)
+                }}
+              />
+            </section>
           </div>
         )}
 
@@ -2496,6 +2505,8 @@ export default function PlansWorkspace() {
             </section>
           </div>
         )}
+        </div>
+        </div>
 
         {/* Session editor modal — always rendered regardless of active tab */}
         {editorOpen && editingSession && plan && (
@@ -2516,6 +2527,7 @@ export default function PlansWorkspace() {
             weekNumber={editingSession.weekNumber}
             dayIndex={editingSession.dayOfWeek - 1}
             hasPowerMeter={Boolean(userProfile?.hasPowerMeter)}
+            zoneProfile={activeZoneProfile ?? undefined}
             profileEquipment={userProfile?.equipment || []}
             zoneVersionOptions={zoneVersionOptions}
           />

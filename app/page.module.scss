@@ -236,6 +236,21 @@
   }
 }
 
+:global([data-theme='dark']) .exportActionBtn,
+:global([data-theme='neon']) .exportActionBtn {
+  strong,
+  small {
+    color: inherit;
+  }
+}
+
+:global([data-theme='dark']) .exportActionIcon,
+:global([data-theme='neon']) .exportActionIcon {
+  background: var(--theme-surface-tertiary);
+  border-color: var(--theme-border-light);
+  color: var(--theme-text-primary);
+}
+
 .sectionHeaderRow {
   display: flex;
   justify-content: space-between;
@@ -559,7 +574,7 @@
   font-weight: 700;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .hero h1 {
     font-size: 1.8rem;
   }
@@ -946,17 +961,26 @@
   }
 }
 
-/* Tab-based workspace navigation — replaces old workspaceNav anchor links */
+/* Workspace navigation: a compact rail on wide screens and a no-scroll tab grid on mobile. */
+.workspaceShell {
+  display: grid;
+  grid-template-columns: 10.5rem minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+  min-width: 0;
+}
+
 .workspaceTabBar {
   display: flex;
+  flex-direction: column;
   position: sticky;
-  top: 0;
+  top: 1rem;
   z-index: 90;
   background: var(--theme-surface);
-  border-bottom: 2px solid var(--theme-border);
+  border: 1px solid var(--theme-border);
+  border-radius: 0.75rem;
   box-shadow: 0 2px 8px var(--theme-card-shadow);
-  margin: 1.5rem -1rem 1.5rem;
-  padding: 0 1rem;
+  padding: 0.35rem;
 }
 
 .workspaceTab {
@@ -964,11 +988,13 @@
   flex-direction: column;
   align-items: center;
   gap: 0.2rem;
-  flex: 1;
+  min-width: 0;
+  min-height: 3.9rem;
   padding: 0.7rem 0.5rem;
   background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
+  border: 0;
+  border-left: 3px solid transparent;
+  border-radius: 0.55rem;
   color: var(--theme-text-secondary);
   cursor: pointer;
   transition: all 0.18s;
@@ -980,9 +1006,16 @@
   }
 }
 
+@media (min-width: 901px) and (max-width: 1100px) {
+  .workspaceTabBar {
+    position: relative;
+    top: auto;
+  }
+}
+
 .workspaceTabActive {
   color: var(--theme-accent);
-  border-bottom-color: var(--theme-accent);
+  border-left-color: var(--theme-accent);
   background: var(--theme-surface-hover);
 }
 
@@ -999,7 +1032,11 @@
 }
 
 .workspaceTabLabel {
-  font-size: 0.76rem;
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(0.72rem, 0.8vw, 0.82rem);
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -1007,18 +1044,59 @@
 
 .tabContent {
   animation: tabFadeIn 200ms ease-out both;
-  /* Extra bottom padding on mobile so content clears the bottom tab bar */
   padding-bottom: 1rem;
-
-  @media (max-width: 768px) {
-    padding-bottom: 80px;
-  }
 }
 
-@media (max-width: 768px) {
+.workspaceMain {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .workspaceShell {
+    display: block;
+  }
+
   .workspaceTabBar {
-    margin-top: 1rem;
-    margin-bottom: 1.25rem;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    display: grid;
+    position: relative;
+    top: auto;
+    gap: 0.25rem;
+    margin-top: 0.5rem;
+    margin-bottom: 0.75rem;
+    padding: 0.35rem;
+  }
+
+  .workspaceTab {
+    min-height: 3.9rem;
+    padding: 0.55rem 0.25rem;
+    border-radius: 0.55rem;
+    border-left: 0;
+    border-bottom: 3px solid transparent;
+
+    &:nth-child(1),
+    &:nth-child(2) {
+      grid-column: span 3;
+    }
+
+    &:nth-child(n + 3) {
+      grid-column: span 2;
+    }
+  }
+
+  .workspaceTabIcon svg {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+
+  .workspaceTabLabel {
+    font-size: 0.76rem;
+    letter-spacing: 0.02em;
+  }
+
+  .workspaceTabActive {
+    border-bottom-color: var(--theme-accent);
+    border-left-color: transparent;
   }
 }
 
@@ -1045,7 +1123,12 @@
 }
 
 .calendarSection {
-  margin: 3rem 0;
+  margin: 0;
+  padding: 1.5rem;
+  border: 1px solid var(--theme-border);
+  border-radius: 0.75rem;
+  background: var(--theme-surface);
+  box-shadow: 0 2px 8px var(--theme-card-shadow);
 
   .calendarHeader {
     display: flex;
@@ -1058,6 +1141,14 @@
       color: var(--theme-text-primary);
     }
   }
+}
+
+.workspacePanel {
+  padding: 1.5rem;
+  border: 1px solid var(--theme-border);
+  border-radius: 0.75rem;
+  background: var(--theme-surface);
+  box-shadow: 0 2px 8px var(--theme-card-shadow);
 }
 
 .zonePillBtn {
@@ -1280,11 +1371,15 @@
   }
 
   .calendarSection {
-    margin: 1.6rem 0;
+    padding: 1rem;
 
     .calendarHeader {
       gap: 0.8rem;
     }
+  }
+
+  .workspacePanel {
+    padding: 1rem;
   }
 
   .checkboxLabel {

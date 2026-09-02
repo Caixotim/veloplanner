@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import clsx from 'clsx'
-import type { Equipment, TrainingSession } from '@/app/lib/types'
+import type { Equipment, TrainingSession, UserZoneProfile } from '@/app/lib/types'
 import { getTemplatesForType } from '@/app/lib/workoutTemplates'
 import styles from './SessionEditorModal.module.scss'
 
@@ -20,6 +20,7 @@ interface SessionEditorModalProps {
   weekNumber: number
   dayIndex: number
   hasPowerMeter: boolean
+  zoneProfile?: UserZoneProfile
   zoneVersionOptions?: Array<{
     versionLabel: string
     ftp: number
@@ -64,6 +65,7 @@ export default function SessionEditorModal({
   weekNumber,
   dayIndex,
   hasPowerMeter,
+  zoneProfile,
   zoneVersionOptions = [],
 }: SessionEditorModalProps) {
   const isViewMode = mode === 'view'
@@ -297,17 +299,47 @@ export default function SessionEditorModal({
 
             <div className={styles.infoPanel}>
               <strong>Description</strong>
-              <p>{session.description || 'No description'}</p>
+              <p className={styles.descriptionText}>{getReadableSessionDescription(session.description)}</p>
             </div>
 
             {session.structuredWorkout && session.structuredWorkout.length > 0 && (
               <div className={styles.infoPanel}>
                 <strong>Structured Workout</strong>
                 <ul className={styles.detailList}>
-                  {session.structuredWorkout.map((step, index) => (
+                  {getReadableWorkoutSteps(session.structuredWorkout).map((step, index) => (
                     <li key={`step-${index}`}>{step}</li>
                   ))}
                 </ul>
+                <div className={styles.workoutGraph} aria-label="Workout intensity graph">
+                  <div className={styles.workoutGraphHeader}>
+                    <strong>Workout structure</strong>
+                    <span>{hasPowerMeter ? 'Power zones · width = duration' : 'HR zones · width = duration'}</span>
+                  </div>
+                  <div className={styles.workoutGraphBars}>
+                    {parseStructuredWorkout(getReadableWorkoutSteps(session.structuredWorkout)).map((step, index) => (
+                      <div
+                        key={`graph-step-${step.id}`}
+                        className={styles.workoutGraphColumn}
+                        style={{ flexGrow: Math.max(1, step.minutes) }}
+                        title={`Block ${index + 1}: ${step.minutes} min · ${step.target}`}
+                      >
+                        <div
+                          className={styles.workoutGraphBar}
+                          style={{
+                            height: `${getWorkoutBarHeight(step.target)}%`,
+                            background: getWorkoutZoneColor(step.target, hasPowerMeter, zoneProfile),
+                          }}
+                          aria-label={`${getWorkoutZone(step.target, hasPowerMeter, zoneProfile)} · ${step.minutes} minutes`}
+                        />
+                        <span>{getWorkoutZone(step.target, hasPowerMeter, zoneProfile)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className={styles.workoutGraphAxis}>
+                    <span>Z1 · recovery</span>
+                    <span>Z5 · hard</span>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -323,8 +355,8 @@ export default function SessionEditorModal({
 
             {session.notes && (
               <div className={styles.infoPanel}>
-                <strong>Notes</strong>
-                <p>{session.notes}</p>
+                <strong>Coaching cues</strong>
+                <p className={styles.guidanceText}>{getReadableSessionNotes(session)}</p>
               </div>
             )}
           </div>
@@ -527,7 +559,7 @@ export default function SessionEditorModal({
               value={edited.description}
               onChange={(e) => handleFieldChange('description', e.target.value)}
               className={styles.textarea}
-              rows={2}
+              rows={3}
             />
           </div>
 
@@ -802,6 +834,109 @@ function parseStructuredWorkout(lines?: string[]): WorkoutStepDraft[] {
       note: 'main set',
     },
   ]
+}
+
+function getWorkoutBarHeight(target: string): number {
+  const match = target.match(/(\d+(?:\.\d+)?)/)
+  const value = match ? Number(match[1]) : 60
+  return Math.max(24, Math.min(100, ((value - 50) / 70) * 76 + 24))
+}
+
+function getWorkoutZone(target: string, hasPowerMeter: boolean, zoneProfile?: UserZoneProfile): string {
+  const percentages = [...target.matchAll(/(\d+(?:\.\d+)?)\s*%/g)].map((match) => Number(match[1]))
+  const percentage = percentages.length > 0 ? percentages.reduce((sum, value) => sum + value, 0) / percentages.length : null
+
+  if (percentage === null) {
+    return 'Z2'
+  }
+
+  if (zoneProfile?.zones?.length) {
+    const zoneIndex = zoneProfile.zones.findIndex((zone) => percentage >= zone.minPct * 100 && percentage <= zone.maxPct * 100)
+    if (zoneIndex >= 0) {
+      return `Z${zoneIndex + 1}`
+    }
+  }
+
+  if (hasPowerMeter) {
+    if (percentage <= 55) return 'Z1'
+    if (percentage <= 75) return 'Z2'
+    if (percentage <= 90) return 'Z3'
+    if (percentage <= 105) return 'Z4'
+    return 'Z5'
+  }
+
+  if (percentage <= 68) return 'Z1'
+  if (percentage <= 83) return 'Z2'
+  if (percentage <= 94) return 'Z3'
+  if (percentage <= 105) return 'Z4'
+  return 'Z5'
+}
+
+function getWorkoutZoneColor(target: string, hasPowerMeter: boolean, zoneProfile?: UserZoneProfile): string {
+  const zoneLabel = getWorkoutZone(target, hasPowerMeter, zoneProfile)
+  const zoneIndex = Number(zoneLabel.replace('Z', '')) - 1
+  return zoneProfile?.zones[zoneIndex]?.color || ['#b0d4f1', '#83c5e5', '#f5a623', '#e07b39', '#d94f3d', '#9b2335'][zoneIndex] || '#39ffb6'
+}
+
+function getReadableSessionDescription(description: string): string {
+  const segments = description
+    .split('|')
+    .map((segment) => segment.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+  const uniqueSegments = segments.filter(
+    (segment, index, all) => all.findIndex((candidate) => candidate.toLowerCase() === segment.toLowerCase()) === index
+  )
+  const readableSegments = uniqueSegments
+    .filter((segment) => !/^(?:-\s*)?(?:warmup|cooldown)$/i.test(segment))
+    .slice(0, 4)
+
+  if (readableSegments.length > 0) {
+    const summary = readableSegments.join(' · ')
+    return summary.length > 240 ? `${summary.slice(0, 237).trimEnd()}...` : summary
+  }
+
+  return description.replace(/\s+/g, ' ').trim() || 'No description'
+}
+
+function getReadableSessionNotes(session: TrainingSession): string {
+  if (!session.notes || !/workout level|\d+\s*'/i.test(session.notes)) {
+    return session.notes || 'No additional coaching cues.'
+  }
+
+  const duration = session.duration
+  const cues = session.type === 'recovery'
+    ? ['Keep the effort genuinely easy and finish feeling better than you started.']
+    : session.type === 'strength'
+      ? ['Use controlled movement and stable posture; leave one or two good reps in reserve.']
+      : session.type === 'vo2max' || session.type === 'anaerobic'
+        ? ['Prioritize quality: keep hard efforts sharp and recover fully between repetitions.']
+        : session.type === 'threshold'
+          ? ['Start conservatively and keep each interval controlled rather than sprinting the first minute.']
+          : ['Keep the effort smooth and steady; avoid chasing speed.']
+
+  if (duration >= 60) {
+    cues.push(`Fuel: aim for ${duration >= 90 ? '40–60' : '30–45'}g carbohydrate per hour, starting in the first 30 minutes.`)
+  } else if (duration >= 45 && session.type !== 'recovery') {
+    cues.push('Fuel: have a small carbohydrate snack beforehand; water is usually enough during this session.')
+  }
+
+  if (duration >= 60 || ['threshold', 'vo2max', 'anaerobic'].includes(session.type)) {
+    cues.push('After: eat carbohydrates with 20–30g protein within two hours and replace fluids.')
+  }
+
+  return cues.join('\n')
+}
+
+function getReadableWorkoutSteps(lines: string[]): string[] {
+  const steps = lines
+    .flatMap((line) => line.split('|'))
+    .map((step) => step.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+  const uniqueSteps = steps.filter(
+    (step, index, all) => all.findIndex((candidate) => candidate.toLowerCase() === step.toLowerCase()) === index
+  )
+
+  return uniqueSteps.slice(0, 8)
 }
 
 function serializeStructuredWorkout(steps: WorkoutStepDraft[]): string[] {

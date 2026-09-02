@@ -113,7 +113,7 @@ export default function ZoneWizard({ existingProfile, defaultFtp, defaultMaxHR, 
                 const hMax = zone.maxHRPct != null ? Math.round((zone.maxHRPct / 100) * maxHRNum) : null
 
                 return (
-                  <tr key={index}>
+                  <tr key={index} style={{ borderLeft: `4px solid ${zone.color || 'var(--theme-accent)'}` }}>
                     <td>
                       <span className={styles.zoneDot} style={{ background: zone.color }} />
                       <input

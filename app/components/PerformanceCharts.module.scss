@@ -14,6 +14,64 @@
   }
 }
 
+:global([data-theme='dark']) .chartsContainer,
+:global([data-theme='neon']) .chartsContainer {
+  h2,
+  h3,
+  h4 {
+    color: var(--theme-text-primary);
+  }
+
+  background: var(--theme-surface);
+  border-color: var(--theme-border);
+  box-shadow: 0 4px 16px var(--theme-card-shadow);
+  color: var(--theme-text-primary);
+
+  .bodyMetricsCard,
+  .planningAssistantCard,
+  .seasonChart,
+  .prCard,
+  .phaseWeekCard,
+  .monotonyCard,
+  .quickNav,
+  .chartCard,
+  .executionTrendCard,
+  .readinessSummaryCard,
+  .zoneVersionCard {
+    background: var(--theme-surface-secondary);
+    border-color: var(--theme-border);
+  }
+
+  .bodyMetricsHeader h3,
+  .chartTitleRow,
+  .planningAssistantHeadline,
+  .prBest,
+  .phaseWeekNum,
+  .monotonyRow strong {
+    color: var(--theme-text-primary);
+  }
+
+  .bodyMetricsHeader p,
+  .planningSlotDay,
+  .planningSlotDuration,
+  .planningSlotRationale,
+  .phaseWeekHours,
+  .phaseWeekFocus li,
+  .monotonyRow,
+  .monotonyGuidance,
+  .emptyStateText {
+    color: var(--theme-text-secondary);
+  }
+
+  .planningSlot,
+  .quickNavLink,
+  .quickNavControlBtn {
+    background: var(--theme-surface-tertiary);
+    border-color: var(--theme-border);
+    color: var(--theme-text-primary);
+  }
+}
+
 .bodyMetricsCard {
   border: 1px solid #d6e3f1;
   border-radius: 12px;
@@ -934,6 +992,74 @@
     strong {
       color: #1f4469;
     }
+  }
+}
+
+/* The progress view contains many nested cards. Keep their presentation tied
+   to the app theme instead of the original light-only dashboard palette. */
+:global([data-theme='dark']) .chartsContainer,
+:global([data-theme='neon']) .chartsContainer {
+  .loadSummaryCard,
+  .polarizationRow,
+  .sectionHeader,
+  .sectionHeaderCollapsible,
+  .executionTrendCard,
+  .sessionTypeCard,
+  .rampGuidanceCard,
+  .rampChart,
+  .readinessSummaryCard,
+  .peakRow,
+  .thresholdTrendRow {
+    background: var(--theme-surface-secondary);
+    border-color: var(--theme-border);
+  }
+
+  .loadSummaryCard span,
+  .polarizationLabel,
+  .sectionHeader p,
+  .rampGuidanceRow,
+  .rampGuidanceText,
+  .readinessStatRow,
+  .readinessMeta,
+  .peakStatusText,
+  .thresholdTrendRow span {
+    color: var(--theme-text-secondary);
+  }
+
+  .loadSummaryCard strong,
+  .polarizationRow strong,
+  .sectionHeader h3,
+  .sessionTypeCard h4,
+  .rampGuidanceRow strong,
+  .readinessStatRow strong,
+  .peakDuration,
+  .peakPower,
+  .thresholdTrendRow strong,
+  .zoneVersionCard h4,
+  .zoneVersionCard li strong {
+    color: var(--theme-text-primary);
+  }
+
+  .sectionToggle,
+  .helpIcon,
+  .sourcePill,
+  .quickNavLink,
+  .quickNavControlBtn {
+    background: var(--theme-surface-tertiary);
+    border-color: var(--theme-border-light);
+    color: var(--theme-text-primary);
+  }
+
+  .sessionTypeCard p,
+  .phaseWeekFocus li,
+  .zoneVersionCard li,
+  .polarizationInsightsList,
+  .emptyStateText {
+    color: var(--theme-text-secondary);
+  }
+
+  .planningSlotType {
+    color: var(--theme-accent);
   }
 }
 

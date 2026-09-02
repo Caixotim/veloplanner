@@ -168,3 +168,37 @@
     grid-template-columns: 1fr 1fr;
   }
 }
+
+:global([data-theme='dark']) .card,
+:global([data-theme='neon']) .card {
+  background: var(--theme-surface-secondary);
+  border-color: var(--theme-border);
+  color: var(--theme-text-primary);
+
+  .header h3,
+  .history h4 {
+    color: var(--theme-text-primary);
+  }
+
+  .header p,
+  .formGrid span,
+  .notesField span,
+  .emptyState,
+  .history li {
+    color: var(--theme-text-secondary);
+  }
+
+  input,
+  textarea,
+  .history li {
+    background: var(--theme-surface);
+    border-color: var(--theme-border-light);
+    color: var(--theme-text-primary);
+  }
+
+  .todayChip {
+    background: var(--theme-surface-tertiary);
+    border-color: var(--theme-border-light);
+    color: var(--theme-text-primary);
+  }
+}

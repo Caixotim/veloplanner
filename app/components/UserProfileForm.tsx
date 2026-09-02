@@ -398,8 +398,7 @@ export function UserProfileForm({
       </div>
       )}
 
-      <details className={styles.advancedOptions}>
-        <summary>Fine-tune coaching (optional)</summary>
+      <div>
 
       {(showPlanInputs || showAthleteDetails) && (
         <div className={styles.section}>
@@ -631,10 +630,13 @@ export function UserProfileForm({
         <div className={styles.timeGrid}>
           {Object.entries(profile.availableTime || {}).map(([day, hours]) => (
             <div key={day} className={styles.timeGroup}>
-              <label htmlFor={`time-${day}`}>{day.charAt(0).toUpperCase() + day.slice(1)}</label>
+              <label htmlFor={`time-${day}`}>
+                <span>{day.charAt(0).toUpperCase() + day.slice(1)}</span>
+                <strong>{hours || 0}h</strong>
+              </label>
               <input
                 id={`time-${day}`}
-                type="number"
+                type="range"
                 min="0"
                 max="8"
                 step="0.5"
@@ -715,7 +717,7 @@ export function UserProfileForm({
       </>
       )}
 
-      </details>
+      </div>
 
       <button type="submit" className={styles.submitButton} disabled={loading}>
         {loading ? 'Saving...' : submitLabel}

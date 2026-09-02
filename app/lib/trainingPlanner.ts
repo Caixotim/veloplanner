@@ -482,7 +482,12 @@ function generateWeekSessions(
         ? [...focusPoints, ftpTestKind === 'baseline' ? 'FTP baseline test' : 'FTP progress assessment']
         : addInjuryFocusPoints(focusPoints, injuryConstraints),
       equipment,
-      notes: [`Workout Level: ${structuredPrescription.workoutLevel.toFixed(1)}`, ...structuredPrescription.steps].join('\n'),
+      notes: buildSessionGuidanceNotes({
+        sessionType: adaptedType,
+        durationMinutes: adjustedDuration,
+        hasPowerMeter: userProfile.hasPowerMeter,
+        injuryConstraints,
+      }),
       structuredWorkout: [`Workout Level ${structuredPrescription.workoutLevel.toFixed(1)}`, ...structuredPrescription.steps],
       plannedPower: isFtpTestSession
         ? undefined
@@ -901,6 +906,51 @@ type BuildPreDayNutritionTipOptions = {
   durationMinutes: number
   plannedEvents: NonNullable<UserProfile['plannedEvents']>
   sessionDate: Date
+}
+
+function buildSessionGuidanceNotes({
+  sessionType,
+  durationMinutes,
+  hasPowerMeter,
+  injuryConstraints,
+}: {
+  sessionType: SessionType
+  durationMinutes: number
+  hasPowerMeter: boolean
+  injuryConstraints: InjuryConstraints
+}): string {
+  const guidance: string[] = []
+
+  const executionAdvice: Record<SessionType, string> = {
+    endurance: hasPowerMeter ? 'Keep the effort smooth and controlled; stay mostly in Z2.' : 'Keep the effort conversational and steady; avoid chasing speed.',
+    tempo: 'Hold an even rhythm; back off slightly if breathing becomes ragged.',
+    threshold: 'Start conservatively and keep each interval controlled rather than sprinting the first minute.',
+    vo2max: 'Prioritize quality: complete the hard work with good form, then recover fully between efforts.',
+    anaerobic: 'Keep each acceleration sharp and relaxed; stop the repetition if technique breaks down.',
+    strength: 'Use controlled movement and stable posture; leave one or two good reps in reserve.',
+    recovery: 'Keep this genuinely easy; finish feeling better than when you started.',
+  }
+  guidance.push(executionAdvice[sessionType])
+
+  if (injuryConstraints.hasKneeIssues) {
+    guidance.push('Knee cue: use a comfortable cadence and avoid grinding heavy gears.')
+  } else if (injuryConstraints.hasLowerBackIssues) {
+    guidance.push('Back cue: stay supported and neutral; stop if discomfort increases.')
+  } else if (injuryConstraints.hasShoulderIssues) {
+    guidance.push('Shoulder cue: relax your upper body and avoid loaded positions that cause pain.')
+  }
+
+  if (durationMinutes >= 60) {
+    guidance.push(`Fuel: aim for ${durationMinutes >= 90 ? '40–60' : '30–45'}g carbohydrate per hour, starting in the first 30 minutes.`)
+  } else if (durationMinutes >= 45 && sessionType !== 'recovery') {
+    guidance.push('Fuel: have a small carbohydrate snack beforehand; water is usually enough during this session.')
+  }
+
+  if (durationMinutes >= 60 || sessionType === 'threshold' || sessionType === 'vo2max' || sessionType === 'anaerobic') {
+    guidance.push('After: eat a carbohydrate-rich meal with 20–30g protein within two hours and replace fluids.')
+  }
+
+  return guidance.join('\n')
 }
 
 /**

@@ -242,13 +242,13 @@ export default function PerformanceCharts({
       })
   }, [loadSeries, plannedEvents])
   const tooltipStyle = {
-    backgroundColor: '#ffffff',
-    border: '1px solid #d6dde8',
+    backgroundColor: 'var(--theme-surface)',
+    border: '1px solid var(--theme-border)',
     borderRadius: 8,
-    boxShadow: '0 8px 18px rgba(12, 32, 64, 0.12)',
+    boxShadow: '0 8px 18px var(--theme-card-shadow-strong)',
   }
-  const tooltipLabelStyle = { color: '#223142', fontWeight: 700 }
-  const tooltipItemStyle = { color: '#33465c' }
+  const tooltipLabelStyle = { color: 'var(--theme-text-primary)', fontWeight: 700 }
+  const tooltipItemStyle = { color: 'var(--theme-text-secondary)' }
 
   // Generate training load heatmap data
   const volumeData = plan.weeks.map((week, idx) => {
