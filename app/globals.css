@@ -1,5 +1,22 @@
 /* ===== Theme System ===== */
 
+.accountMigrationPrompt {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 0.7rem 1rem;
+  color: var(--theme-text-primary);
+  background: var(--theme-surface-secondary);
+  border-bottom: 1px solid var(--theme-border);
+}
+
+.accountMigrationPrompt div {
+  display: flex;
+  gap: 0.5rem;
+}
+
 :root,
 html[data-theme="light"],
 body[data-theme="light"] {

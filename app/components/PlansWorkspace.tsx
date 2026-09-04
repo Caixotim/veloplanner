@@ -12,7 +12,7 @@ import ZoneWizard from './ZoneWizard'
 import { AnalyticsDashboard } from './AnalyticsDashboard'
 import { buildRideMatchMap } from '../lib/rideMatcher'
 import type { RideMatchMap } from '../lib/rideMatcher'
-import { buildAthletePlanContext, buildPlanRequest, generateTrainingPlan } from '../lib/trainingPlanner'
+import { assessPlanFeasibility, buildAthletePlanContext, buildPlanRequest, constrainPlanToRecentVolume, generateTrainingPlan } from '../lib/trainingPlanner'
 import { buildDailyLoadSeries } from '../lib/loadModel'
 import { generateMealSuggestionsWithApi } from '../lib/mealPlanner'
 import { computeThresholdHistory } from '../lib/thresholdHistory'
@@ -25,11 +25,15 @@ import {
   exportPlanWorkoutBundleZip,
 } from '../lib/exportPlan'
 import { storage, type StoredPlan } from '../lib/storage'
+import { waitForAccountScope } from '../lib/accountScope'
 import { syncIntervalsDelta, isIntervalsSyncNeeded, getIntervalsTrainingInsights, fetchIntervalsBlockedDates, fetchPlansFromIntervals } from '../lib/intervalsIntegration'
 import { buildIntervalsCredentialHeaders, getIntervalsCredentials, type IntervalsCredentials } from '../lib/integrationCredentials'
 import { comparePlans, getChangeSummary } from '../lib/diffPlanner'
 import { useAnalytics } from '../lib/analytics'
 import { useSyncWorker } from '../lib/useSyncWorker'
+import { publishPlan } from '../lib/planLifecycle'
+import { getPlanRepository } from '../lib/repositorySelector'
+import type { PlanRepository } from '../lib/repository'
 import type { BodyMetricsEntry, DailyReadinessEntry, PlanDiff, SyncResult, SessionCompletion, TrainingGoal, TrainingPlan, TrainingSession, UserProfile, UserZoneProfile } from '../lib/types'
 import type { AthleteRideSignature, IntervalsTrainingInsights } from '../lib/intervalsIntegration'
 import styles from '../page.module.scss'
@@ -99,6 +103,7 @@ const SHORT_DAY_PREFERENCE_LABELS: Record<NonNullable<UserProfile['shortDayPrefe
 
 export default function PlansWorkspace() {
   const { isPortuguese, t, translateText } = useLocale()
+  const planRepository = useMemo<PlanRepository>(() => getPlanRepository(), [])
   const [plan, setPlan] = useState<TrainingPlan | null>(null)
   const [currentPlan, setCurrentPlan] = useState<TrainingPlan | null>(null)
   const [loading, setLoading] = useState(false)
@@ -178,10 +183,21 @@ export default function PlansWorkspace() {
       success: boolean
       newRidesCount: number
       changes: Array<{ type: string; label: string }>
+      rides?: Array<Record<string, unknown>>
       error?: string
       timestamp: number
     }) => {
       if (result.success) {
+        if (result.rides) {
+          void Promise.all(
+            result.rides.map((ride) => {
+              const id = typeof ride.id === 'string' ? ride.id : ''
+              return id ? storage.cacheRide(`ride-${id}`, { ...ride, rideDate: ride.date }) : Promise.resolve()
+            })
+          ).then(() => loadRecentRideData()).catch((error) => {
+            console.warn('Failed to cache background rides', { error })
+          })
+        }
         void loadRecentRideData()
         setLastSyncTime(result.timestamp)
         setSyncMessage(`Background sync: ${result.newRidesCount} new ride(s)`)
@@ -203,7 +219,7 @@ export default function PlansWorkspace() {
     [loadRecentRideData, trackEvent]
   )
 
-  const { isRunning, startSync, stopSync } = useSyncWorker(intervalsCredentials, handleWorkerSyncResult)
+  const { isRunning, startSync, stopSync } = useSyncWorker(intervalsCredentials, handleWorkerSyncResult, userProfile?.timezone)
 
   const hasChanges = useMemo(() => changedSessions.size > 0, [changedSessions])
 
@@ -228,15 +244,22 @@ export default function PlansWorkspace() {
 
   useEffect(() => {
     if (activeWorkspaceTab === 'calendar') {
-      setCalendarAutoScrollSignal((current) => current + 1)
+      const signalFrameId = window.requestAnimationFrame(() => {
+        setCalendarAutoScrollSignal((current) => current + 1)
+      })
 
       if (activeCoachActionKey) {
         const frameId = window.requestAnimationFrame(() => {
           document.getElementById('training-calendar')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
         })
 
-        return () => window.cancelAnimationFrame(frameId)
+        return () => {
+          window.cancelAnimationFrame(signalFrameId)
+          window.cancelAnimationFrame(frameId)
+        }
       }
+
+      return () => window.cancelAnimationFrame(signalFrameId)
     }
   }, [activeCoachActionKey, activeWorkspaceTab])
 
@@ -248,7 +271,7 @@ export default function PlansWorkspace() {
       for (const c of completions) map.set(c.sessionId, c)
       setPlanCompletions(map)
     }).catch(() => {})
-  }, [currentPlan?.id])
+  }, [currentPlan])
 
   // Load zone profile on init
   useEffect(() => {
@@ -533,17 +556,21 @@ export default function PlansWorkspace() {
   }, [currentPlan, effectiveFtpTarget, intervalsRideData])
 
   const refreshStoredPlans = useCallback(async () => {
-    const plans = await storage.loadAllPlans()
+    const plans = await planRepository.listPlans()
     const sortedPlans = [...plans].sort((a, b) => b.updatedAt - a.updatedAt)
     setStoredPlans(sortedPlans)
     return sortedPlans
-  }, [])
+  }, [planRepository])
+
+  const persistPlanUpdate = useCallback(async (nextPlan: TrainingPlan, expectedRevision = nextPlan.revision ?? 0) => {
+    const result = await planRepository.updatePlan({ plan: nextPlan, expectedRevision })
+    if (!result.ok) {
+      throw new Error(result.error.message)
+    }
+    return result.value
+  }, [planRepository])
 
   const repairCollapsedPlan = useCallback(async (planToRepair: TrainingPlan, profileSeed?: Partial<UserProfile> | null) => {
-    if (!hasCollapsedFutureWeeks(planToRepair)) {
-      return planToRepair
-    }
-
     const repairProfile = buildAthleteProfileTemplate({
       ...buildEditableProfile(planToRepair, profileSeed),
       id: planToRepair.userId,
@@ -552,6 +579,11 @@ export default function PlansWorkspace() {
       planStartDate: formatDateInput(planToRepair.startDate),
       desiredPlanWeeks: planToRepair.durationWeeks,
     })
+    const collapsed = hasCollapsedFutureWeeks(planToRepair)
+
+    if (!collapsed && !hasAvailabilityScheduleMismatch(planToRepair, repairProfile)) {
+      return planToRepair
+    }
 
     try {
       const planRequest = buildPlanRequest(repairProfile)
@@ -566,7 +598,18 @@ export default function PlansWorkspace() {
         blockedDates,
       })
 
-      return mergeCollapsedPlanWithRegeneratedWeeks(planToRepair, regeneratedPlan)
+      if (collapsed) {
+        return mergeCollapsedPlanWithRegeneratedWeeks(planToRepair, regeneratedPlan)
+      }
+
+      return {
+        ...regeneratedPlan,
+        id: planToRepair.id,
+        externalPlanId: planToRepair.externalPlanId || planToRepair.id,
+        createdAt: planToRepair.createdAt,
+        updatedAt: new Date(),
+        intervalsSync: planToRepair.intervalsSync,
+      }
     } catch (repairError) {
       console.warn('Failed to regenerate collapsed plan; keeping current plan', { repairError })
       return planToRepair
@@ -574,7 +617,7 @@ export default function PlansWorkspace() {
   }, [])
 
   const loadProfileForPlan = useCallback(async (planToLoad: TrainingPlan) => {
-    const storedProfile = await storage.loadProfile(planToLoad.userId)
+    const storedProfile = await planRepository.loadProfile()
 
     if (storedProfile) {
       setUserProfile(storedProfile)
@@ -583,14 +626,19 @@ export default function PlansWorkspace() {
 
     setUserProfile(buildEditableProfile(planToLoad))
     return null
-  }, [])
+  }, [planRepository])
 
   const restoreBackupPlan = useCallback(
     async (backupPlan: TrainingPlan) => {
       try {
         setLoading(true)
         const storedPlan = { id: backupPlan.id, plan: backupPlan, updatedAt: Date.now(), createdAt: Date.now() }
-        await storage.savePlan(backupPlan, false)
+        const existingPlan = await planRepository.loadPlan(backupPlan.id)
+        if (existingPlan) {
+          await persistPlanUpdate(backupPlan, existingPlan.plan.revision ?? 0)
+        } else {
+          await planRepository.createPlan(backupPlan)
+        }
 
         setPlan(backupPlan)
         setCurrentPlan(backupPlan)
@@ -610,25 +658,29 @@ export default function PlansWorkspace() {
         setLoading(false)
       }
     },
-    [refreshStoredPlans, trackEvent]
+    [persistPlanUpdate, planRepository, refreshStoredPlans, trackEvent]
   )
 
   useEffect(() => {
     const init = async () => {
       try {
+        await waitForAccountScope()
         await storage.init()
         console.info('Storage initialized')
 
-        const [plans, storedProfiles] = await Promise.all([refreshStoredPlans(), storage.loadProfiles()])
+        const [plans, storedProfile] = await Promise.all([refreshStoredPlans(), planRepository.loadProfile()])
         await loadRecentRideData()
 
         if (plans.length > 0) {
           const latestPlan = plans[0]
           const recoveredPlan = recoverCorruptedStoredPlan(latestPlan)
-          const matchingProfile = storedProfiles.find((profile) => profile.id === recoveredPlan.userId) || buildEditableProfile(recoveredPlan)
+          // Profiles are compacted into the single `active-profile` record by
+          // storage, so their persisted id is not the plan's userId. Resolve
+          // through the storage fallback instead of matching the record id.
+          const matchingProfile = storedProfile || buildEditableProfile(recoveredPlan)
           const activePlan = await repairCollapsedPlan(recoveredPlan, matchingProfile)
           if (activePlan !== latestPlan.plan) {
-            await storage.updatePlan(latestPlan.id, activePlan)
+            await persistPlanUpdate(activePlan, latestPlan.plan.revision ?? 0)
           }
 
           setPlan(activePlan)
@@ -646,10 +698,9 @@ export default function PlansWorkspace() {
           }
         }
 
-        if (plans.length === 0 && storedProfiles.length > 0) {
-          const latestProfile = [...storedProfiles].sort((a, b) => b.createdAt - a.createdAt)[0]
-          setUserProfile(latestProfile)
-          await refreshIntervalsInsightsSnapshot(latestProfile.weight)
+        if (plans.length === 0 && storedProfile) {
+          setUserProfile(storedProfile)
+          await refreshIntervalsInsightsSnapshot(storedProfile.weight)
         }
 
         const savedIntervalsCredentials = await getIntervalsCredentials()
@@ -678,7 +729,7 @@ export default function PlansWorkspace() {
     }
 
     init()
-  }, [loadRecentRideData, refreshIntervalsInsightsSnapshot, refreshStoredPlans, trackEvent])
+  }, [loadRecentRideData, persistPlanUpdate, planRepository, refreshIntervalsInsightsSnapshot, refreshStoredPlans, repairCollapsedPlan, trackEvent])
 
   useEffect(() => {
     if (intervalsCredentials) {
@@ -857,7 +908,7 @@ export default function PlansWorkspace() {
                   return { ...week, sessions, totalHours: sessions.reduce((sum, session) => sum + session.duration / 60, 0) }
                 })
                 planAfterDeletions = { ...currentPlan, weeks: updatedWeeks, updatedAt: new Date() }
-                await storage.updatePlan(planAfterDeletions.id, planAfterDeletions)
+                await persistPlanUpdate(planAfterDeletions, currentPlan.revision ?? 0)
                 setPlan(planAfterDeletions)
                 setCurrentPlan(planAfterDeletions)
                 setPlanDiff(null)
@@ -866,7 +917,7 @@ export default function PlansWorkspace() {
 
               if (hasPlanMutations) {
                 planAfterDeletions = { ...currentPlan, weeks: updatedWeeks, updatedAt: new Date() }
-                await storage.updatePlan(planAfterDeletions.id, planAfterDeletions)
+                await persistPlanUpdate(planAfterDeletions, currentPlan.revision ?? 0)
                 setPlan(planAfterDeletions)
                 setCurrentPlan(planAfterDeletions)
                 setPlanDiff(null)
@@ -919,7 +970,7 @@ export default function PlansWorkspace() {
 
                 if (matchingRemotePlan && countTrainableSessions(matchingRemotePlan) > countTrainableSessions(currentPlan)) {
                   planAfterDeletions = mergeRemotePlanSessions(currentPlan, matchingRemotePlan)
-                  await storage.updatePlan(planAfterDeletions.id, planAfterDeletions)
+                  await persistPlanUpdate(planAfterDeletions, currentPlan.revision ?? 0)
                   setPlan(planAfterDeletions)
                   setCurrentPlan(planAfterDeletions)
                   setPlanDiff(null)
@@ -950,7 +1001,7 @@ export default function PlansWorkspace() {
 
               if (matchingRemotePlan && countTrainableSessions(matchingRemotePlan) > localTrainableCount) {
                 planAfterDeletions = mergeRemotePlanSessions(currentPlan, matchingRemotePlan)
-                await storage.updatePlan(planAfterDeletions.id, planAfterDeletions)
+                await persistPlanUpdate(planAfterDeletions, currentPlan.revision ?? 0)
                 setPlan(planAfterDeletions)
                 setCurrentPlan(planAfterDeletions)
                 setPlanDiff(null)
@@ -1013,7 +1064,7 @@ export default function PlansWorkspace() {
               },
               updatedAt: new Date(),
             }
-            await storage.updatePlan(syncedPlan.id, syncedPlan)
+            await persistPlanUpdate(syncedPlan, currentPlan?.revision ?? 0)
             setPlan(syncedPlan)
             setCurrentPlan(syncedPlan)
             const pushedCount = pendingCount > 0 ? pendingCount : (pushPayload.syncedEvents || missingRemoteSessionCount)
@@ -1164,7 +1215,7 @@ export default function PlansWorkspace() {
             console.error('Retarget replace sync failed', { error })
           }
 
-          await storage.updatePlan(currentPlan.id, finalRetargetedPlan)
+          await persistPlanUpdate(finalRetargetedPlan, currentPlan.revision ?? 0)
           setPlan(finalRetargetedPlan)
           setCurrentPlan(finalRetargetedPlan)
           setPlanDiff(null)
@@ -1192,6 +1243,8 @@ export default function PlansWorkspace() {
     currentPlan,
     endTimer,
     loadRecentRideData,
+    intervalsCredentials,
+    persistPlanUpdate,
     refreshIntervalsInsightsSnapshot,
     refreshStoredPlans,
     syncReconciliationMode,
@@ -1263,13 +1316,13 @@ export default function PlansWorkspace() {
         weeks: weeks.map((week) => ({ ...week, totalHours: week.sessions.reduce((sum, session) => sum + session.duration / 60, 0) })),
         updatedAt: new Date(),
       }
-      await storage.updatePlan(nextPlan.id, nextPlan)
+      await persistPlanUpdate(nextPlan, nextPlan.revision ?? currentPlan?.revision ?? 0)
       setPlan(nextPlan)
       setCurrentPlan(nextPlan)
     } catch (error) {
       console.warn('Unable to hydrate visible calendar range from Intervals.icu', { error, oldest, newest })
     }
-  }, [currentPlan, intervalsCredentials])
+  }, [currentPlan, intervalsCredentials, persistPlanUpdate])
 
   const syncPlanWithIntervals = useCallback(
     async (mode: PlanSyncMode, planToSync: TrainingPlan) => {
@@ -1277,7 +1330,7 @@ export default function PlansWorkspace() {
         method: 'POST',
         headers: await buildIntervalsCredentialHeaders({
           'Content-Type': 'application/json',
-        }),
+        }, planToSync.timezone),
         body: JSON.stringify({ mode, plan: planToSync }),
       })
 
@@ -1299,6 +1352,33 @@ export default function PlansWorkspace() {
     []
   )
 
+  const confirmPlanPublication = useCallback(async () => {
+    if (!currentPlan || currentPlan.status === 'active') return
+
+    setIntervalsSyncStatus('syncing')
+    try {
+      const syncResult = await syncPlanWithIntervals('upsert', currentPlan)
+      if (!syncResult.success) {
+        throw new Error(buildSyncErrorMessage(syncResult.error, syncResult.details))
+      }
+
+      const publishedPlan = publishPlan({
+        ...currentPlan,
+        externalPlanId: syncResult.externalPlanId || currentPlan.externalPlanId || currentPlan.id,
+        intervalsSync: { syncedAt: new Date().toISOString() },
+      })
+      const savedPublishedPlan = await persistPlanUpdate(publishedPlan, currentPlan.revision ?? 0)
+      setPlan(savedPublishedPlan)
+      setCurrentPlan(savedPublishedPlan)
+      await refreshStoredPlans()
+      setIntervalsSyncStatus('success')
+      setSyncMessage(`Plan published to Intervals.icu (${syncResult.syncedEvents || 0} workouts)`)
+    } catch (error) {
+      setIntervalsSyncStatus('error')
+      setSyncMessage(toErrorMessage(error))
+    }
+  }, [currentPlan, persistPlanUpdate, refreshStoredPlans, syncPlanWithIntervals])
+
   const handleCreatePlan = useCallback(
     async (profile: Partial<UserProfile>) => {
       try {
@@ -1306,13 +1386,8 @@ export default function PlansWorkspace() {
         startTimer('plan_creation')
 
         const userId = `user_${Date.now()}`
-        const storedProfiles = await storage.loadProfiles()
-        const latestStoredProfile = [...storedProfiles].sort((left, right) => {
-          const leftUpdated = Number(new Date((left.updatedAt as unknown as Date) || left.createdAt || 0))
-          const rightUpdated = Number(new Date((right.updatedAt as unknown as Date) || right.createdAt || 0))
-          return rightUpdated - leftUpdated
-        })[0]
-        const athleteTemplate = buildAthleteProfileTemplate(userProfile || latestStoredProfile)
+        const storedProfile = await planRepository.loadProfile()
+        const athleteTemplate = buildAthleteProfileTemplate(userProfile || storedProfile)
         let completeProfile: UserProfile = {
           ...athleteTemplate,
           id: userId,
@@ -1377,15 +1452,22 @@ export default function PlansWorkspace() {
           formatDateInput(planRequest.startDate),
           formatDateInput(new Date(planRequest.startDate.getTime() + planRequest.durationWeeks * 7 * 24 * 60 * 60 * 1000))
         )
-        const generatedPlan = generateTrainingPlan(userId, planRequest, buildAthletePlanContext(completeProfile), {
+        let generatedPlan = generateTrainingPlan(userId, planRequest, buildAthletePlanContext(completeProfile), {
           intervalsInsights,
           blockedDates,
         })
-        // Intervals.icu has a hard 20-events-per-day limit. A newly created
-        // active plan replaces the current active schedule rather than adding
-        // a duplicate schedule on top of it.
-        if (currentPlan) {
-          generatedPlan.externalPlanId = currentPlan.externalPlanId || currentPlan.id
+        const recentWeeklyHours = getRecentWeeklyRideHours(intervalsRideData)
+        const feasibility = assessPlanFeasibility(generatedPlan, completeProfile, recentWeeklyHours)
+        let feasibilityMessage = ''
+        if (!feasibility.feasible && recentWeeklyHours) {
+          generatedPlan = constrainPlanToRecentVolume(generatedPlan, recentWeeklyHours)
+          const adjusted = assessPlanFeasibility(generatedPlan, completeProfile, recentWeeklyHours)
+          feasibilityMessage = `Plan adjusted for feasibility: ${feasibility.warnings.join(' • ')}. Weekly volume was capped to a gradual increase.`
+          setSyncMessage(feasibilityMessage)
+          console.info('Adjusted requested plan to recent ride volume', { feasibility, adjusted })
+        } else if (!feasibility.feasible) {
+          feasibilityMessage = `Plan constrained to saved availability: ${feasibility.warnings.join(' • ')}`
+          setSyncMessage(feasibilityMessage)
         }
         let finalPlan = generatedPlan
 
@@ -1393,31 +1475,13 @@ export default function PlansWorkspace() {
           profile: completeProfile,
         })
 
-        await storage.saveProfile(completeProfile)
-        await storage.savePlan(generatedPlan, true)
+        await planRepository.saveProfile(completeProfile)
+        await planRepository.createPlan(generatedPlan)
 
-        try {
-          const syncResult = await syncPlanWithIntervals('replace', generatedPlan)
+        setSyncMessage('Draft plan saved. Review it and publish when ready.')
 
-          if (syncResult.success) {
-            const syncedPlan: TrainingPlan = {
-              ...generatedPlan,
-              externalPlanId: syncResult.externalPlanId || generatedPlan.externalPlanId || generatedPlan.id,
-              intervalsSync: {
-                syncedAt: new Date().toISOString(),
-              },
-            }
-
-            await storage.updatePlan(generatedPlan.id, syncedPlan)
-            finalPlan = syncedPlan
-            setSyncMessage(`Plan synced to Intervals.icu (${syncResult.syncedEvents || 0} workouts)`)
-          } else if (syncResult.error) {
-            setSyncMessage(buildSyncErrorMessage(syncResult.error, syncResult.details))
-          }
-        } catch (error) {
-          const message = toErrorMessage(error)
-          console.error('Initial Intervals plan sync failed', message)
-          setSyncMessage(message)
+        if (feasibilityMessage) {
+          setSyncMessage(feasibilityMessage)
         }
 
         setPlan(finalPlan)
@@ -1445,21 +1509,21 @@ export default function PlansWorkspace() {
         setLoading(false)
       }
     },
-    [endTimer, intervalsCredentials, performIntervalsSync, refreshStoredPlans, startTimer, syncPlanWithIntervals, trackEvent, userProfile]
+    [accessToken, endTimer, intervalsCredentials, intervalsRideData, performIntervalsSync, planRepository, refreshStoredPlans, startTimer, trackEvent, userProfile]
   )
 
   const handleSelectPlan = useCallback(async (planId: string) => {
-    const selectedPlan = await storage.loadPlan(planId)
+    const selectedPlan = await planRepository.loadPlan(planId)
 
     if (!selectedPlan) {
       return
     }
 
     const recoveredPlan = recoverCorruptedStoredPlan(selectedPlan)
-    const existingProfile = await storage.loadProfile(recoveredPlan.userId)
+    const existingProfile = await planRepository.loadProfile()
     const activePlan = await repairCollapsedPlan(recoveredPlan, existingProfile || buildEditableProfile(recoveredPlan))
     if (activePlan !== selectedPlan.plan) {
-      await storage.updatePlan(selectedPlan.id, activePlan)
+      await persistPlanUpdate(activePlan, selectedPlan.plan.revision ?? 0)
     }
 
     setPlan(activePlan)
@@ -1469,7 +1533,7 @@ export default function PlansWorkspace() {
     const loadedProfile = await loadProfileForPlan(activePlan)
     await refreshIntervalsInsightsSnapshot(loadedProfile?.weight)
     setSyncMessage(activePlan !== selectedPlan.plan ? `Recovered plan ${activePlan.id} from original local snapshot` : `Loaded plan ${activePlan.id}`)
-  }, [loadProfileForPlan, refreshIntervalsInsightsSnapshot, repairCollapsedPlan])
+  }, [loadProfileForPlan, persistPlanUpdate, planRepository, refreshIntervalsInsightsSnapshot, repairCollapsedPlan])
 
   const athleteSignature = latestIntervalsInsights?.athleteSignature
   const signatureBiasReasons = useMemo(() => deriveSignatureBiasReasons(athleteSignature), [athleteSignature])
@@ -1480,7 +1544,7 @@ export default function PlansWorkspace() {
         return
       }
 
-      const selectedPlan = await storage.loadPlan(planId)
+      const selectedPlan = await planRepository.loadPlan(planId)
       let intervalsDeleteSucceeded = false
 
       if (selectedPlan?.plan) {
@@ -1499,9 +1563,12 @@ export default function PlansWorkspace() {
         }
       }
 
-      // Always delete locally, regardless of Intervals sync success
-      await storage.deletePlan(planId)
-      console.info(`Plan ${planId} deleted locally`, { intervalsDeleteSucceeded })
+      const deleteResult = await planRepository.deletePlan(planId, selectedPlan?.plan.revision ?? 0)
+      if (!deleteResult.ok) {
+        setSyncMessage(`Plan was not deleted because it changed elsewhere: ${deleteResult.error.message}`)
+        return
+      }
+      console.info(`Plan ${planId} deleted`, { intervalsDeleteSucceeded })
 
       // Refresh the stored plans list to update UI
       const plans = await refreshStoredPlans()
@@ -1530,7 +1597,7 @@ export default function PlansWorkspace() {
         }
       }
     },
-    [currentPlan, loadProfileForPlan, refreshStoredPlans, syncPlanWithIntervals]
+    [currentPlan, loadProfileForPlan, planRepository, refreshStoredPlans, syncPlanWithIntervals]
   )
 
   const handleDeleteAllPlans = useCallback(async () => {
@@ -1565,7 +1632,10 @@ export default function PlansWorkspace() {
           })
         }
 
-        await storage.deletePlan(storedPlan.id)
+        const deleteResult = await planRepository.deletePlan(storedPlan.id, storedPlan.plan.revision ?? 0)
+        if (!deleteResult.ok) {
+          console.warn('Plan changed elsewhere during bulk delete', { planId: storedPlan.id })
+        }
       }
 
       await refreshStoredPlans()
@@ -1588,14 +1658,14 @@ export default function PlansWorkspace() {
     } finally {
       setLoading(false)
     }
-  }, [refreshStoredPlans, storedPlans, syncPlanWithIntervals])
+  }, [planRepository, refreshStoredPlans, storedPlans, syncPlanWithIntervals])
 
   const handleDuplicatePlan = useCallback(
     async (planId: string) => {
       try {
         setLoading(true)
 
-        const selectedPlan = await storage.loadPlan(planId)
+        const selectedPlan = await planRepository.loadPlan(planId)
         if (!selectedPlan) {
           return
         }
@@ -1603,7 +1673,7 @@ export default function PlansWorkspace() {
         const sourcePlan = selectedPlan.plan
         const duplicatedUserId = `user_${Date.now()}`
         const duplicatedPlanId = `plan_${duplicatedUserId}_${Date.now()}`
-        const sourceProfile = await storage.loadProfile(sourcePlan.userId)
+        const sourceProfile = await planRepository.loadProfile()
 
         const duplicatedPlan: TrainingPlan = {
           ...sourcePlan,
@@ -1643,7 +1713,7 @@ export default function PlansWorkspace() {
               planStartDate: formatDateInput(sourcePlan.startDate),
               desiredPlanWeeks: sourcePlan.durationWeeks,
               ftpIncreaseTargetWatts: sourcePlan.targetMetrics.ftpIncreaseTargetWatts,
-              injuries: userProfile?.injuries || [],
+              injuries: userProfile?.injuries?.length ? userProfile.injuries : ['none'],
               equipment: userProfile?.equipment || [],
               hasPowerMeter: userProfile?.hasPowerMeter || false,
               intensityDistribution: userProfile?.intensityDistribution || 'conservative',
@@ -1662,8 +1732,8 @@ export default function PlansWorkspace() {
               updatedAt: new Date(),
             }
 
-        await storage.saveProfile(duplicatedProfile)
-        await storage.savePlan(duplicatedPlan, true)
+        await planRepository.saveProfile(duplicatedProfile)
+        await planRepository.createPlan(duplicatedPlan)
 
         setPlan(duplicatedPlan)
         setCurrentPlan(duplicatedPlan)
@@ -1671,7 +1741,7 @@ export default function PlansWorkspace() {
         setPlanDiff(null)
         setChangedSessions(new Set())
         await refreshStoredPlans()
-        setSyncMessage(`Duplicated plan as "${duplicatedPlan.name}". This copy was kept local until you choose to save changes.`)
+        setSyncMessage(`Duplicated plan as "${duplicatedPlan.name}".`)
       } catch (error) {
         console.error('Failed to duplicate plan', { error })
         setSyncMessage(error instanceof Error ? error.message : 'Failed to duplicate plan')
@@ -1679,7 +1749,7 @@ export default function PlansWorkspace() {
         setLoading(false)
       }
     },
-    [refreshStoredPlans, storedPlans, userProfile]
+    [planRepository, refreshStoredPlans, storedPlans, userProfile]
   )
 
   const handleSessionChange = useCallback(
@@ -1756,9 +1826,9 @@ export default function PlansWorkspace() {
       const syncedPlan = syncResult.success
         ? { ...nextPlan, externalPlanId: syncResult.externalPlanId || nextPlan.externalPlanId || nextPlan.id, intervalsSync: { syncedAt: new Date().toISOString() } }
         : nextPlan
-      await storage.updatePlan(syncedPlan.id, syncedPlan)
-      setPlan(syncedPlan)
-      setCurrentPlan(syncedPlan)
+      const savedPlan = await persistPlanUpdate(syncedPlan, currentPlan.revision ?? 0)
+      setPlan(savedPlan)
+      setCurrentPlan(savedPlan)
       setPlanDiff(null)
       setChangedSessions(new Set())
       setSyncMessage(syncResult.success ? 'Coach change applied and synced' : 'Coach change applied locally; sync needs attention')
@@ -1768,7 +1838,7 @@ export default function PlansWorkspace() {
     } finally {
       setLoading(false)
     }
-  }, [currentPlan, refreshStoredPlans, syncPlanWithIntervals])
+  }, [currentPlan, persistPlanUpdate, refreshStoredPlans, syncPlanWithIntervals])
 
   const handleDeleteCoachSession = useCallback(async (weekNumber: number, dayOfWeek: number) => {
     if (!currentPlan) return
@@ -1788,9 +1858,9 @@ export default function PlansWorkspace() {
       const syncedPlan = syncResult.success
         ? { ...nextPlan, intervalsSync: { syncedAt: new Date().toISOString() } }
         : nextPlan
-      await storage.updatePlan(syncedPlan.id, syncedPlan)
-      setPlan(syncedPlan)
-      setCurrentPlan(syncedPlan)
+      const savedPlan = await persistPlanUpdate(syncedPlan, currentPlan.revision ?? 0)
+      setPlan(savedPlan)
+      setCurrentPlan(savedPlan)
       setPlanDiff(null)
       setChangedSessions(new Set())
       setSyncMessage(syncResult.success ? 'Coach removed the session and synced the plan' : 'Session removed locally; sync needs attention')
@@ -1800,7 +1870,7 @@ export default function PlansWorkspace() {
     } finally {
       setLoading(false)
     }
-  }, [currentPlan, refreshStoredPlans, syncPlanWithIntervals])
+  }, [currentPlan, persistPlanUpdate, refreshStoredPlans, syncPlanWithIntervals])
 
   const handleDeleteFutureCoachSessions = useCallback(async () => {
     if (!currentPlan) return
@@ -1822,9 +1892,9 @@ export default function PlansWorkspace() {
     try {
       const syncResult = await syncPlanWithIntervals('replace', nextPlan)
       const savedPlan = syncResult.success ? { ...nextPlan, intervalsSync: { syncedAt: new Date().toISOString() } } : nextPlan
-      await storage.updatePlan(savedPlan.id, savedPlan)
-      setPlan(savedPlan)
-      setCurrentPlan(savedPlan)
+      const persistedPlan = await persistPlanUpdate(savedPlan, currentPlan.revision ?? 0)
+      setPlan(persistedPlan)
+      setCurrentPlan(persistedPlan)
       setPlanDiff(null)
       setChangedSessions(new Set())
       setSyncMessage(syncResult.success ? 'Future sessions removed and plan synced' : 'Future sessions removed locally; sync needs attention')
@@ -1834,7 +1904,7 @@ export default function PlansWorkspace() {
     } finally {
       setLoading(false)
     }
-  }, [currentPlan, refreshStoredPlans, syncPlanWithIntervals])
+  }, [currentPlan, persistPlanUpdate, refreshStoredPlans, syncPlanWithIntervals])
 
   const handleSessionMove = useCallback(
     (
@@ -1993,10 +2063,10 @@ export default function PlansWorkspace() {
         console.error('Failed to update Intervals plan', toErrorMessage(error))
       }
 
-      await storage.updatePlan(currentPlan.id, updatedPlan)
+      const savedPlan = await persistPlanUpdate(updatedPlan, currentPlan.revision ?? 0)
 
-      setPlan(updatedPlan)
-      setCurrentPlan(updatedPlan)
+      setPlan(savedPlan)
+      setCurrentPlan(savedPlan)
       setPlanDiff(null)
       setChangedSessions(new Set())
       setSyncMessage('Plan saved')
@@ -2005,7 +2075,7 @@ export default function PlansWorkspace() {
     } catch (error) {
       console.error('Failed to save plan', { error })
     }
-  }, [changedSessions.size, currentPlan, endTimer, plan, refreshStoredPlans, startTimer, syncPlanWithIntervals])
+  }, [changedSessions.size, currentPlan, endTimer, persistPlanUpdate, plan, refreshStoredPlans, startTimer, syncPlanWithIntervals])
 
   const handleResetPlan = useCallback(() => {
     if (!plan) {
@@ -2127,6 +2197,16 @@ export default function PlansWorkspace() {
               <h1 title={currentPlan.name}>Coach</h1>
               <p>Ask for anything about your training</p>
             </div>
+            {currentPlan.status !== 'active' && (
+              <button
+                type="button"
+                onClick={confirmPlanPublication}
+                disabled={intervalsSyncStatus === 'syncing'}
+                className={styles.syncBtn}
+              >
+                {intervalsSyncStatus === 'syncing' ? 'Publishing...' : 'Review & Publish Plan'}
+              </button>
+            )}
             <section className={styles.plannerStrategyCard} aria-label="Planner strategy summary" hidden>
               <h3>Planner Strategy</h3>
               <div className={styles.plannerStrategyChips}>
@@ -2705,7 +2785,7 @@ function buildEditableProfile(plan: TrainingPlan, profile?: Partial<UserProfile>
     desiredPlanWeeks: profile?.desiredPlanWeeks || plan.durationWeeks,
     ftpIncreaseTargetWatts: profile?.ftpIncreaseTargetWatts ?? plan.targetMetrics.ftpIncreaseTargetWatts,
     plannedEvents: profile?.plannedEvents || [],
-    injuries: profile?.injuries || [],
+    injuries: profile?.injuries?.length ? profile.injuries : ['none'],
     equipment: profile?.equipment || [],
     hasPowerMeter: profile?.hasPowerMeter || false,
     intensityDistribution: profile?.intensityDistribution || 'conservative',
@@ -2745,7 +2825,7 @@ function buildAthleteProfileTemplate(profile?: Partial<UserProfile> | null): Use
     desiredPlanWeeks: profile?.desiredPlanWeeks || 12,
     ftpIncreaseTargetWatts: profile?.ftpIncreaseTargetWatts ?? 0,
     plannedEvents: profile?.plannedEvents || [],
-    injuries: profile?.injuries || [],
+    injuries: profile?.injuries?.length ? profile.injuries : ['none'],
     equipment: profile?.equipment || [],
     hasPowerMeter: profile?.hasPowerMeter || false,
     intensityDistribution: profile?.intensityDistribution || 'conservative',
@@ -2881,6 +2961,25 @@ function hasCollapsedFutureWeeks(plan: TrainingPlan): boolean {
   return plan.durationWeeks > 1 && countTrainableSessionsAfterWeekOne(plan) === 0
 }
 
+function hasAvailabilityScheduleMismatch(plan: TrainingPlan, profile: UserProfile): boolean {
+  const sessionsByDate = new Map<string, number>()
+
+  for (const session of plan.weeks.flatMap((week) => week.sessions)) {
+    if (session.duration <= 0) continue
+    const date = new Date(session.date)
+    const dayName = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][date.getDay()] as keyof UserProfile['availableTime']
+    const availableMinutes = Math.round((profile.availableTime[dayName] || 0) * 60)
+    if (availableMinutes < 25 || session.duration > availableMinutes) return true
+
+    const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+    const count = (sessionsByDate.get(dateKey) || 0) + 1
+    sessionsByDate.set(dateKey, count)
+    if (count > 1) return true
+  }
+
+  return false
+}
+
 function recoverCorruptedStoredPlan(storedPlan: StoredPlan): TrainingPlan {
   const currentPlan = storedPlan.plan
   const originalPlan = storedPlan.originalPlan
@@ -2942,6 +3041,16 @@ function formatDateInput(date: Date | string): string {
   const month = String(normalized.getMonth() + 1).padStart(2, '0')
   const day = String(normalized.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+function getRecentWeeklyRideHours(rides: IntervalsRidePoint[]): number | undefined {
+  if (rides.length === 0) return undefined
+
+  const cutoff = Date.now() - 42 * 24 * 60 * 60 * 1000
+  const recentRides = rides.filter((ride) => ride.date >= cutoff && ride.duration > 0)
+  if (recentRides.length === 0) return undefined
+
+  return recentRides.reduce((sum, ride) => sum + ride.duration / 60, 0) / 6
 }
 
 function buildDefaultPlanNameFromProfile(profile: Partial<UserProfile>): string {

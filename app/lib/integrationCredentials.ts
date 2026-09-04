@@ -1,4 +1,5 @@
 import { storage } from './storage'
+import { getDefaultTimezone, normalizeTimezone } from './timezone'
 
 export type IntervalsCredentials = {
   apiKey: string
@@ -98,7 +99,7 @@ export async function clearIntervalsCredentials(): Promise<void> {
   }
 }
 
-export async function buildIntervalsCredentialHeaders(baseHeaders?: HeadersInit): Promise<HeadersInit> {
+export async function buildIntervalsCredentialHeaders(baseHeaders?: HeadersInit, timeZone?: string): Promise<HeadersInit> {
   const credentials = await getIntervalsCredentials()
 
   if (!credentials) {
@@ -108,5 +109,6 @@ export async function buildIntervalsCredentialHeaders(baseHeaders?: HeadersInit)
   const headers = new Headers(baseHeaders || {})
   headers.set('x-intervals-api-key', credentials.apiKey)
   headers.set('x-intervals-athlete-id', credentials.athleteId)
+  headers.set('x-athlete-timezone', normalizeTimezone(timeZone || getDefaultTimezone()))
   return headers
 }

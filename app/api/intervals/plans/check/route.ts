@@ -1,4 +1,5 @@
 import { getIntervalsConfigFromRequest, hasIntervalsConfig, intervalsRequest } from '../../_utils'
+import { getAuthenticatedIntervalsConfig } from '../../serverConfig'
 
 type PlanSyncCheckRequest = {
   externalPlanId: string
@@ -57,7 +58,7 @@ export async function POST(request: Request): Promise<Response> {
       )
     }
 
-    const config = getIntervalsConfigFromRequest(request)
+    const config = (await getAuthenticatedIntervalsConfig()) ?? getIntervalsConfigFromRequest(request)
     if (!hasIntervalsConfig(config)) {
       return Response.json(
         {

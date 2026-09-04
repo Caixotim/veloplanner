@@ -3,8 +3,9 @@ import type { TrainingPlan } from './types'
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
 export function toDateSafe(value: unknown, fallback: Date): Date {
-  if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? fallback : value
+  if (value instanceof Date || Object.prototype.toString.call(value) === '[object Date]') {
+    const timestamp = (value as Date).getTime()
+    return Number.isNaN(timestamp) ? fallback : new Date(timestamp)
   }
 
   if (typeof value === 'string' || typeof value === 'number') {

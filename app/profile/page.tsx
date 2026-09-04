@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { UserProfileForm } from '../components/UserProfileForm'
-import { storage, type StoredPlan } from '../lib/storage'
+import type { StoredPlan } from '../lib/storage'
 import { fetchIntervalsBlockedDates, getIntervalsTrainingInsights } from '../lib/intervalsIntegration'
 import { buildAthletePlanContext, buildPlanRequest, calculateTargetMetrics, generateTrainingPlan } from '../lib/trainingPlanner'
 import { generateMealSuggestionsWithApi } from '../lib/mealPlanner'
@@ -11,6 +11,8 @@ import { buildIntervalsCredentialHeaders } from '../lib/integrationCredentials'
 import type { TrainingGoal, TrainingPlan, UserProfile } from '../lib/types'
 import styles from './page.module.scss'
 import { useLocale } from '../lib/i18n'
+import { getPlanRepository } from '../lib/repositorySelector'
+import { waitForAccountScope } from '../lib/accountScope'
 
 type SaveStatus =
   | { kind: 'idle' }
@@ -21,6 +23,7 @@ type PlanSyncMode = 'upsert' | 'delete'
 
 export default function ProfilePage() {
   const { translateText } = useLocale()
+  const planRepository = useMemo(() => getPlanRepository(), [])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [linkedPlan, setLinkedPlan] = useState<StoredPlan | null>(null)
@@ -39,24 +42,20 @@ export default function ProfilePage() {
     setLoading(true)
 
     try {
+      await waitForAccountScope()
       if (planId) {
-        const storedPlan = await storage.loadPlan(planId)
+        const storedPlan = await planRepository.loadPlan(planId)
 
         if (storedPlan) {
           setLinkedPlan(storedPlan)
-          const scopedProfile = await storage.loadProfile(storedPlan.plan.userId)
+          const scopedProfile = await planRepository.loadProfile()
           setProfile(buildAthleteProfileTemplate(scopedProfile, storedPlan.plan))
           setLoading(false)
           return
         }
       }
 
-      const profiles = await storage.loadProfiles()
-      const latestProfile = [...profiles].sort((left, right) => {
-        const leftTime = Number(new Date((left.updatedAt as unknown as Date) || left.createdAt || 0))
-        const rightTime = Number(new Date((right.updatedAt as unknown as Date) || right.createdAt || 0))
-        return rightTime - leftTime
-      })[0]
+      const latestProfile = await planRepository.loadProfile()
 
       if (latestProfile) {
         setProfile(buildAthleteProfileTemplate(latestProfile))
@@ -70,7 +69,7 @@ export default function ProfilePage() {
     } finally {
       setLoading(false)
     }
-  }, [planId])
+  }, [planId, planRepository])
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
@@ -126,7 +125,7 @@ export default function ProfilePage() {
         updatedAt: new Date(),
       }
 
-      await storage.saveProfile(nextProfile)
+      await planRepository.saveProfile(nextProfile)
       setProfile(nextProfile)
 
       if (!linkedPlan) {
@@ -185,8 +184,9 @@ export default function ProfilePage() {
           console.error('Failed to resync regenerated plan after athlete profile update', toErrorMessage(error))
         }
 
-        await storage.updatePlan(linkedPlan.plan.id, nextPlan)
-        setLinkedPlan((current) => (current ? { ...current, plan: nextPlan, updatedAt: Date.now(), isModified: true } : current))
+        const result = await planRepository.updatePlan({ plan: nextPlan, expectedRevision: linkedPlan.plan.revision ?? 0 })
+        if (!result.ok) throw new Error(result.error.message)
+        setLinkedPlan((current) => (current ? { ...current, plan: result.value, updatedAt: Date.now(), isModified: true } : current))
         setStatus({ kind: 'success', message: `Athlete profile updated. Plan regenerated because ${impact.reasons.join(', ')}.` })
         return
       }
@@ -198,8 +198,9 @@ export default function ProfilePage() {
           updatedAt: new Date(),
         }
 
-        await storage.updatePlan(linkedPlan.plan.id, refreshedPlan)
-        setLinkedPlan((current) => (current ? { ...current, plan: refreshedPlan, updatedAt: Date.now(), isModified: true } : current))
+        const result = await planRepository.updatePlan({ plan: refreshedPlan, expectedRevision: linkedPlan.plan.revision ?? 0 })
+        if (!result.ok) throw new Error(result.error.message)
+        setLinkedPlan((current) => (current ? { ...current, plan: result.value, updatedAt: Date.now(), isModified: true } : current))
         setStatus({ kind: 'success', message: 'Athlete profile updated. Refreshed climbing metrics after weight change.' })
         return
       }
@@ -211,7 +212,7 @@ export default function ProfilePage() {
     } finally {
       setSaving(false)
     }
-  }, [linkedPlan, profile, syncPlanWithIntervals])
+  }, [linkedPlan, planRepository, profile, syncPlanWithIntervals])
 
   return (
     <div className={styles.container}>
@@ -278,7 +279,7 @@ function buildAthleteProfileTemplate(profile?: Partial<UserProfile> | null, link
     desiredPlanWeeks: profile?.desiredPlanWeeks || linkedPlan?.durationWeeks || 12,
     ftpIncreaseTargetWatts: profile?.ftpIncreaseTargetWatts ?? linkedPlan?.targetMetrics.ftpIncreaseTargetWatts ?? 0,
     plannedEvents: profile?.plannedEvents || [],
-    injuries: profile?.injuries || [],
+    injuries: profile?.injuries?.length ? profile.injuries : ['none'],
     equipment: profile?.equipment || [],
     hasPowerMeter: profile?.hasPowerMeter || false,
     intensityDistribution: profile?.intensityDistribution || 'conservative',

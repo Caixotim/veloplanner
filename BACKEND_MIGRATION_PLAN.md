@@ -5,6 +5,56 @@ Move from device-local only persistence to a cloud source of truth so user plans
 
 The product experience is coach-first: the daily recommendation is the primary workflow, while the calendar and detailed metrics remain supporting views.
 
+## Current Implementation Status
+
+The migration is still local-first. The first stabilization slice is now implemented before introducing cloud state:
+
+- Background ride sync preserves the last successful cursor, uses a small overlap window, prevents overlapping requests, and caches returned rides.
+- Ride and plan sync routes perform runtime request validation.
+- New plan publication uses non-destructive upsert semantics; ordinary capacity handling never deletes existing workouts.
+- Generated plan and session IDs avoid same-millisecond collisions.
+- Coach proposal scheduling removes the proposal immediately and restores it only when creation fails.
+- The domain model now has backward-compatible plan lifecycle and revision fields for the cloud contract.
+- A provider-neutral plan repository contract now defines the future local/cloud persistence seam without selecting an auth or database provider.
+- The local repository now implements that contract with optimistic revision checks, providing a safe reference implementation for the future cloud adapter.
+- Plan-session deduplication is now a pure, tested helper used by the Intervals publication route.
+- Ride-sync request validation is directly covered by route-level tests without contacting Intervals.icu.
+- Plan-sync request validation is directly covered by route-level tests without contacting Intervals.icu.
+- Worker timer replacement, shutdown, and single-flight behavior are covered by pure lifecycle tests.
+- The ride sync route is behavior-tested with mocked upstream responses for normalization, stable-ID filtering, cursor emission, and missing-credential safety.
+- IndexedDB persistence is integration-tested for plans, date hydration, edit history, sync metadata, ride caching, and deletion; Jest now uses a fake IndexedDB implementation.
+- Plan publication is behavior-tested for stable external IDs and non-destructive capacity refusal; capacity refusals are not retried as transient failures.
+- Athlete profiles now persist an IANA timezone, generated plans retain it, and Intervals date formatting uses that timezone with a UTC legacy fallback.
+- Generated plans remain `draft` until the athlete explicitly chooses Review & Publish Plan; publication syncs to Intervals first and activates the plan only after a successful push.
+
+Remaining P0 work is application authentication, server-owned Intervals credentials, and a defined cloud source of truth. No production backend route should accept browser-supplied Intervals credentials after that slice is complete.
+
+The implementation order below is authoritative: stabilize local behavior first, then establish identity and contracts, then add cloud persistence and server-side sync.
+
+## Delivery Status — 2026-09-04
+
+**Current position: Stage 1 started, backend foundation and identity.** Stage 0 local stabilization is complete; the application remains local-first until the Supabase project is configured and cloud reads/writes are enabled.
+
+Deployment constraint: the initial production target is Vercel free tier. API handlers must remain short-lived and idempotent; no in-process worker, cron assumption, or local filesystem persistence is allowed. Durable background sync will use persisted Supabase jobs and a later externally-triggered or request-triggered worker slice rather than a permanently running process.
+
+| Stage | Status | What is complete | What is still missing |
+| --- | --- | --- | --- |
+| 0. Local stabilization and contracts | ✅ Complete | Availability-aware planning, lifecycle types, local repository with revision checks, stable IDs, durable local cursor with overlap, single-flight sync, tested plan-session deduplication, route request and ride behavior validation, worker lifecycle controls, IndexedDB integration, timezone-aware dates, explicit draft publication, runtime sync validation, non-destructive upsert | None for the local stabilization exit criteria |
+| 1. Backend foundation and identity | 🟡 In progress | Supabase + Google OAuth direction selected, initial ownership-safe schema/migration added, server/browser Supabase client boundaries added, login/callback/session/logout routes added, SSR session refresh middleware added, sign-in/sign-out account entry point added, ownership-enforced profile and plan collection APIs added, plan detail CRUD with revision conflicts, nested session collection APIs, session detail CRUD, and unauthenticated route tests added | Configure Supabase project and Google provider, apply migration |
+| 2. Cloud repository and migration | 🟡 Started | Provider-neutral contract, local reference adapter, Vercel-safe HTTP CloudRepository adapter, cloud date hydration, revision-conflict mapping, adapter tests, idempotent profile/plan/session migration, explicit import/skip prompt with retry UX, account-scoped IndexedDB namespace, coordinated authenticated startup gating, best-effort cloud-to-local cache mirroring, and repository wiring for workspace/profile reads plus plan/profile create/save/select/publish/delete/duplicate/reconciliation/coach flows exist; cloud adapter is not enabled by default | Cloud CRUD integration tests against Supabase, full ancillary-data migration policy and live validation |
+| 3. Server-side Intervals jobs | 🟡 Started | Server-only AES-GCM token helper, authenticated connection status/connect/disconnect API, authenticated connection UI persistence, server-owned credential resolution for authenticated rides/plans/events routes, account-owned idempotent sync-job queue schema/API, durable per-account cursor API, stale-lock-aware claiming, success/failure/retry state transitions, short-lived authenticated and service-role Vercel runners for rides and plan syncs, successful ride cursor and plan session-link persistence, account-scoped sync-status endpoint, authenticated sync status/retry UI, and a 15-minute Vercel Cron configuration added; anonymous local-mode headers remain supported during migration | Token refresh/use, live Supabase/Vercel validation |
+| 4. Cloud-first rollout | ⬜ Not started | None | Cloud-first reads, offline fallback, two-device validation, feature flag, rollback and deletion/export flows |
+
+The existing “Phase 0–5” section below is the detailed execution plan. Its statuses describe future delivery phases; this table additionally records the prerequisite local stabilization work that was missing from the original plan.
+
+### Contract decisions already made
+
+- Plan dates are calendar dates owned by the athlete's configured local timezone; they must not be recomputed from UTC timestamps during hydration or sync.
+- Intervals event dates are derived from the session's local calendar date, while ride cursors use provider activity timestamps.
+- A normal upsert may create or update only the plan namespace it owns. Only an explicit repair operation may delete stale events.
+- A successful local sync advances its cursor; failed requests and empty responses never advance it beyond the known provider watermark.
+- Empty successful responses now preserve the previous local cursor instead of advancing to the browser clock.
+
 ## Stage 3 — Conversational Coach
 Stage 3 adds an optional server-side AI explanation layer on top of deterministic training logic. The local coach remains the fallback, so the product works without an AI provider and training calculations do not depend on model output.
 
@@ -50,6 +100,14 @@ Out of scope (initial rollout):
 - Auth: OAuth providers as default first-party identity (Google/Apple first, optional fallback email magic link).
 - Secrets: Encrypt Intervals access/refresh tokens server-side.
 - Source of truth: Backend database; IndexedDB becomes local cache only.
+
+### Selected implementation direction
+- Authentication: Google OAuth through Supabase Auth. Google is the first provider; Apple or magic-link sign-in can be added later without changing the domain model.
+- Database: Supabase hosted Postgres with Supabase migrations and row-level security. This is preferred for the first production slice because auth, sessions, Postgres, ownership policies, and operational tooling are integrated in one system.
+- ORM/query layer: Use the Supabase server client for authenticated reads and writes initially; add Drizzle only if the domain query layer becomes complex enough to justify a second abstraction.
+- Secrets: Keep Intervals tokens in server-only tables encrypted with an application-managed key; never place them in browser storage after migration.
+
+Alternatives considered: Neon plus Auth.js/Better Auth provides more infrastructure control but requires separately operating auth, session, authorization, and database integration. A self-managed Postgres plus custom Google OAuth is not recommended for the first slice.
 
 ## OAuth Provider Strategy (Default)
 Primary recommendation:
@@ -194,6 +252,12 @@ Deliverables:
 - plan_json (compatibility snapshot)
 - created_at, updated_at
 
+Lifecycle rules:
+- New plans start as `draft` and are not treated as the user's active schedule until explicitly confirmed.
+- Confirmation publishes the plan and transitions it to `active`; only one plan may be active per user in the initial rollout.
+- Archiving is non-destructive and must not delete the plan's sessions or sync history.
+- Legacy local plans may omit `status` and `revision`; migration assigns `draft` and revision `0` before upload.
+
 ### 4) sessions
 - id
 - plan_id (FK plans.id)
@@ -329,19 +393,24 @@ Prioritize refactor in:
 
 ## Rollout Phases
 ## Phase 0 — Design + Contracts (1 week)
-Status: ⬜ Not started
+Status: ✅ Complete
+- Stabilize local planner, persistence, and Intervals synchronization before cloud work.
+- Add pure helpers and regression tests for cursor, identity, lifecycle, and idempotency behavior.
 - Finalize DB schema and migrations.
 - Decide OAuth providers and token encryption approach.
 - Finalize redirect URI strategy for dev/staging/prod.
 - Define API contracts and error model.
 - Define conflict policy and merge rules.
+- Record the accepted timezone, publication, cursor, and ownership invariants in the implementation contract.
 
 Exit criteria:
 - ADR approved for backend architecture and auth.
 - API contract draft reviewed.
+- Local sync failure and duplicate scenarios have focused regression coverage.
+- The local reference adapter and pure synchronization helpers are covered by unit tests.
 
 ## Phase 1 — Backend Foundation (1-2 weeks)
-Status: ⬜ Not started
+Status: 🟡 In progress
 - Provision Postgres and migration tooling.
 - Implement OAuth login/callback/session/logout management.
 - Implement users + user_identities + session persistence.
@@ -353,9 +422,10 @@ Exit criteria:
 - Unauthorized access blocked.
 
 ## Phase 2 — Dual Write Client (1 week)
-Status: ⬜ Not started
-- Add repository abstraction.
-- Route create/edit/delete through CloudRepository under feature flag.
+Status: 🟡 In progress
+- Add repository abstraction. ✅
+- Route workspace/profile reads, create, profile save, plan selection, publication, primary plan save, delete, bulk delete, and duplicate through the selected repository. 🟡
+- Route remaining edit/delete/duplicate/reconciliation mutations through the repository. ✅
 - Mirror writes to IndexedDB cache.
 
 Exit criteria:
@@ -373,14 +443,15 @@ Exit criteria:
 - Duplicate event rate is effectively zero.
 
 ## Phase 4 — User Data Migration (1 week)
-Status: ⬜ Not started
-- On first cloud login, import local plans/profile/history.
+Status: 🟡 In progress
+- On first cloud login, import local plans/profile and sessions.
 - Deduplicate by stable plan fingerprint + session external IDs.
-- Show migration report (imported/skipped/conflicted).
+- Show migration report (imported/skipped/conflicted); retry failed items safely. ✅
 
 Exit criteria:
 - Existing users keep their data after upgrade.
 - Migration can be retried safely.
+- Edit history, sync metadata, and other local account data have an explicit migration policy.
 
 ## Phase 5 — Cloud-first Read Path (1 week)
 Status: ⬜ Not started

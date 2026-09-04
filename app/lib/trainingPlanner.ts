@@ -24,7 +24,15 @@ export type AthletePlanContext = Pick<
   | 'hardSessionsPerWeekCap'
   | 'shortDayPreference'
   | 'plannedEvents'
+  | 'timezone'
 >
+
+export type PlanFeasibility = {
+  feasible: boolean
+  warnings: string[]
+  recentWeeklyHours?: number
+  plannedWeeklyHours: number
+}
 
 type PlanGenerationContext = {
   intervalsInsights?: IntervalsTrainingInsights
@@ -37,6 +45,16 @@ type SessionTemplate = {
   duration: number
 }
 
+let generatedIdSequence = 0
+
+function createGeneratedId(prefix: string, ...parts: Array<string | number>): string {
+  generatedIdSequence += 1
+  const uniqueSuffix = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}_${generatedIdSequence}`
+  return `${prefix}_${parts.join('_')}_${uniqueSuffix}`
+}
+
 /**
  * Generate a structured training plan based on user profile
  */
@@ -46,7 +64,7 @@ export function generateTrainingPlan(
   athleteContext: AthletePlanContext,
   context?: PlanGenerationContext
 ): TrainingPlan {
-  const generatedPlanId = `plan_${userId}_${Date.now()}`
+  const generatedPlanId = createGeneratedId('plan', userId)
   const startDate = normalizePlanStartDate(planRequest.startDate)
   const endDate = new Date(startDate.getTime() + planRequest.durationWeeks * 7 * 24 * 60 * 60 * 1000)
   const resolvedPlanRequest: PlanRequest = {
@@ -100,6 +118,9 @@ export function generateTrainingPlan(
     id: generatedPlanId,
     externalPlanId: generatedPlanId,
     userId,
+    timezone: athleteContext.timezone,
+    status: 'draft',
+    revision: 0,
     name: planRequest.name,
     goal: planRequest.goal,
     durationWeeks: planRequest.durationWeeks,
@@ -111,6 +132,64 @@ export function generateTrainingPlan(
     createdAt: new Date(),
     updatedAt: new Date(),
   }
+}
+
+export function assessPlanFeasibility(
+  plan: TrainingPlan,
+  profile: Pick<UserProfile, 'availableTime'>,
+  recentWeeklyHours?: number
+): PlanFeasibility {
+  const warnings: string[] = []
+  const weeklyAvailability = Object.values(profile.availableTime).reduce((sum, hours) => sum + (hours || 0), 0)
+  const plannedWeeklyHours = plan.weeks.length > 0
+    ? plan.weeks.reduce((sum, week) => sum + week.totalHours, 0) / plan.weeks.length
+    : 0
+
+  for (const session of plan.weeks.flatMap((week) => week.sessions)) {
+    if (session.duration <= 0) continue
+    const dayName = getDayNameFromDate(new Date(session.date)) as keyof UserProfile['availableTime']
+    const availableMinutes = Math.round((profile.availableTime[dayName] || 0) * 60)
+    if (availableMinutes < 25 || session.duration > availableMinutes) {
+      warnings.push(`${dayName} session exceeds the saved availability`)
+    }
+  }
+
+  if (plannedWeeklyHours > weeklyAvailability + 0.01) {
+    warnings.push('planned weekly load exceeds the saved weekly availability')
+  }
+
+  if (recentWeeklyHours && recentWeeklyHours > 0 && plannedWeeklyHours > recentWeeklyHours * 1.25) {
+    warnings.push(`planned volume is above the recent ${recentWeeklyHours.toFixed(1)} hour weekly average`)
+  }
+
+  return { feasible: warnings.length === 0, warnings, recentWeeklyHours, plannedWeeklyHours }
+}
+
+export function constrainPlanToRecentVolume(plan: TrainingPlan, recentWeeklyHours?: number): TrainingPlan {
+  if (!recentWeeklyHours || recentWeeklyHours <= 0) return plan
+  const weeklyLimit = Math.max(2, recentWeeklyHours * 1.25)
+  const weeks = plan.weeks.map((week) => {
+    let remainingMinutes = Math.round(weeklyLimit * 60)
+    const sessions = [...week.sessions]
+      .sort((left, right) => right.duration - left.duration)
+      .map((session) => {
+        if (session.duration <= 0 || remainingMinutes <= 0) return session
+        const duration = Math.min(session.duration, remainingMinutes)
+        if (duration < 20) return { ...session, duration: 0, intensity: 'easy' as const, type: 'recovery' as const }
+        remainingMinutes -= duration
+        return duration === session.duration
+          ? session
+          : { ...session, duration: Math.max(20, Math.floor(duration / 5) * 5) }
+      })
+
+    return {
+      ...week,
+      sessions: sessions.sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime()),
+      totalHours: sessions.reduce((sum, session) => sum + session.duration / 60, 0),
+    }
+  })
+
+  return { ...plan, weeks, updatedAt: new Date() }
 }
 
 export function buildPlanRequest(profile: Pick<UserProfile, 'planName' | 'goal' | 'desiredPlanWeeks' | 'ftpIncreaseTargetWatts' | 'planStartDate' | 'plannedEvents'>): PlanRequest {
@@ -382,14 +461,18 @@ function generateWeekSessions(
     phase,
     userProfile.intensityDistribution || 'conservative'
   )
+  const uniqueSessionTypes = selectAvailableSessionTemplates(
+    deduplicateSessionTemplates(finalSessionTypes),
+    weekStartDate,
+    userProfile.availableTime
+  )
 
   // Adjust for available time
-  for (const sessionDef of finalSessionTypes) {
+  for (const sessionDef of uniqueSessionTypes) {
     const sessionDate = getSessionDateForDay(weekStartDate, sessionDef.day)
     const sessionDateKey = formatPlanStartDate(sessionDate)
 
     if (blockedDates.has(sessionDateKey)) {
-      sessions.push(createRestDaySession(weekNumber, sessionDef.day, sessionDate))
       continue
     }
 
@@ -398,11 +481,10 @@ function generateWeekSessions(
     const availableMinutes = Math.round(availableHours * 60)
 
     if (availableMinutes <= 0) {
-      sessions.push(createRestDaySession(weekNumber, sessionDef.day, sessionDate))
       continue
     }
 
-    const isFtpTestSession = ftpTestKind !== null && ftpTestDay === sessionDef.day && availableMinutes >= 50
+    const isFtpTestSession = ftpTestKind !== null && ftpTestDay === sessionDef.day && availableMinutes >= 55
     const adaptedType = isFtpTestSession
       ? 'threshold'
       : adaptSessionTypeForAvailability(sessionDef.type, availableMinutes, userProfile.shortDayPreference)
@@ -435,7 +517,6 @@ function generateWeekSessions(
     }
 
     if (adjustedDuration <= 0) {
-      sessions.push(createRestDaySession(weekNumber, sessionDef.day, sessionDate))
       continue
     }
 
@@ -470,7 +551,7 @@ function generateWeekSessions(
     })
 
     sessions.push({
-      id: `session_${weekNumber}_${sessionDef.day}_${Date.now()}`,
+      id: createGeneratedId('session', weekNumber, sessionDef.day),
       date: sessionDate,
       dayOfWeek: sessionDef.day,
       type: adaptedType,
@@ -523,6 +604,44 @@ function generateWeekSessions(
     weekNumber,
     previousWeekLoadScore,
   })
+}
+
+function selectAvailableSessionTemplates(
+  templates: SessionTemplate[],
+  weekStartDate: Date,
+  availableTime: UserProfile['availableTime']
+): SessionTemplate[] {
+  const availableDays = templates
+    .map((template) => {
+      const date = getSessionDateForDay(weekStartDate, template.day)
+      const dayName = getDayNameFromDate(date) as keyof UserProfile['availableTime']
+      return { day: template.day, minutes: Math.round((availableTime[dayName] || 0) * 60) }
+    })
+    .filter(({ minutes }) => minutes >= 25)
+    .sort((left, right) => right.minutes - left.minutes || left.day - right.day)
+
+  if (availableDays.length === 0) {
+    return []
+  }
+
+  const weeklyHours = availableDays.reduce((sum, day) => sum + day.minutes / 60, 0)
+  const maximumSessions = weeklyHours < 3 ? 1 : weeklyHours < 6 ? 2 : weeklyHours < 10 ? 3 : 4
+  const selectedDays = new Set(availableDays.slice(0, Math.min(maximumSessions, availableDays.length)).map(({ day }) => day))
+
+  return templates.filter((template) => selectedDays.has(template.day))
+}
+
+function deduplicateSessionTemplates(templates: SessionTemplate[]): SessionTemplate[] {
+  const byDay = new Map<number, SessionTemplate>()
+
+  for (const template of templates) {
+    const existing = byDay.get(template.day)
+    if (!existing || template.duration > existing.duration || (template.type !== 'recovery' && existing.type === 'recovery')) {
+      byDay.set(template.day, { ...template })
+    }
+  }
+
+  return [...byDay.values()].sort((left, right) => left.day - right.day)
 }
 
 function priorityWeight(priority: EventPriority): number {
@@ -620,7 +739,7 @@ function getSessionDateForDay(weekStartDate: Date, dayOfWeek: number): Date {
 
 function createRestDaySession(weekNumber: number, dayOfWeek: number, sessionDate: Date): TrainingSession {
   return {
-    id: `session_${weekNumber}_${dayOfWeek}_rest_${Date.now()}`,
+    id: createGeneratedId('session', weekNumber, dayOfWeek, 'rest'),
     date: sessionDate,
     dayOfWeek,
     type: 'recovery',
@@ -673,7 +792,8 @@ function getAvailabilityDrivenDuration({
   const maxAdaptiveDuration = Math.round(baseDuration * extensibilityByType[sessionType])
   const duration = Math.min(availableMinutes, maxAdaptiveDuration, maxDurationByType[sessionType])
 
-  return Math.max(20, Math.round(duration / 5) * 5)
+  // Round down so the generated workout never exceeds the athlete's time slot.
+  return Math.max(20, Math.floor(duration / 5) * 5)
 }
 
 type AnchoredLongRideOptions = {
@@ -685,12 +805,12 @@ type AnchoredLongRideOptions = {
 
 function getAnchoredLongRideDuration({ weekNumber, totalWeeks, availableMinutes, phase }: AnchoredLongRideOptions): number {
   if (availableMinutes < 75) {
-    return Math.max(20, Math.round(availableMinutes / 5) * 5)
+    return Math.max(20, Math.floor(availableMinutes / 5) * 5)
   }
 
   if (phase === 'recovery') {
     const recoveryTarget = Math.min(120, availableMinutes)
-    return Math.max(90, Math.round(recoveryTarget / 5) * 5)
+    return Math.max(20, Math.floor(recoveryTarget / 5) * 5)
   }
 
   const progression = getWeekProgression(weekNumber, totalWeeks)
@@ -699,7 +819,7 @@ function getAnchoredLongRideDuration({ weekNumber, totalWeeks, availableMinutes,
   const deloadTarget = weekInBlock === 4 ? Math.round(baseTarget * 0.85) : baseTarget
   const duration = Math.min(availableMinutes, deloadTarget, 240)
 
-  return Math.max(90, Math.round(duration / 5) * 5)
+  return Math.max(90, Math.floor(duration / 5) * 5)
 }
 
 function adaptSessionTypeForAvailability(

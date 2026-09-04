@@ -86,10 +86,20 @@ export function IntervalsConnection({ onConnectionChange }: IntervalsConnectionP
           throw new Error(payload.error || translateText('Intervals credentials rejected'))
         }
 
+        const normalizedApiKey = intervalsApiKey.trim()
+        const normalizedAthleteId = intervalsAthleteId.trim()
         await saveIntervalsCredentials({
-          apiKey: intervalsApiKey.trim(),
-          athleteId: intervalsAthleteId.trim(),
+          apiKey: normalizedApiKey,
+          athleteId: normalizedAthleteId,
         })
+        const backendResponse = await fetch('/api/backend/integrations/intervals', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ athleteId: normalizedAthleteId, accessToken: normalizedApiKey }),
+        })
+        if (!backendResponse.ok && backendResponse.status !== 401) {
+          throw new Error(`Unable to secure Intervals credentials (${backendResponse.status})`)
+        }
 
         setIntervalsConnected(true)
         setIntervalsLastValidatedAt(Date.now())
@@ -110,6 +120,7 @@ export function IntervalsConnection({ onConnectionChange }: IntervalsConnectionP
     try {
       if (provider === 'intervals') {
         await clearIntervalsCredentials()
+        await fetch('/api/backend/integrations/intervals', { method: 'DELETE' })
         setIntervalsConnected(false)
         setIntervalsLastValidatedAt(null)
         onConnectionChange?.({ provider: 'intervals', connected: false })
@@ -128,7 +139,7 @@ export function IntervalsConnection({ onConnectionChange }: IntervalsConnectionP
         </div>
 
         <p className={styles.description}>
-          {translateText('Connect provider credentials once per browser. Credentials stay local in your browser storage.')}
+          {translateText('Authenticated accounts store Intervals credentials encrypted on the server. Anonymous local mode keeps them in this browser only.')}
         </p>
 
         <section className={styles.setupGuide} aria-labelledby="intervals-setup-guide-title">

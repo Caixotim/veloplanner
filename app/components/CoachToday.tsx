@@ -125,6 +125,7 @@ export default function CoachToday({
   const [pendingDeletion, setPendingDeletion] = useState<{ weekNumber: number; dayOfWeek: number; label: string; date: string } | null>(null)
   const [pendingFutureDeletion, setPendingFutureDeletion] = useState(false)
   const [pendingPlan, setPendingPlan] = useState<Partial<UserProfile> | null>(null)
+  const [planScheduling, setPlanScheduling] = useState(false)
   const conversationEndRef = useRef<HTMLDivElement>(null)
   const pendingProposalRef = useRef<HTMLElement>(null)
 
@@ -156,7 +157,7 @@ export default function CoachToday({
       const goal = /climb|hill|subida|escalada/.test(normalizedQuestion) ? 'climbing_sustainability' : /endurance|resistência|long/.test(normalizedQuestion) ? 'endurance' : /recover|recuperação/.test(normalizedQuestion) ? 'recovery' : 'ftp_increase'
       const weeks = Number(normalizedQuestion.match(/(\d+)\s*(?:weeks?|semanas?)/)?.[1] || 12)
       const start = parsePlanStartDate(normalizedQuestion)
-      setPendingPlan({ planName: `${goal.replace(/_/g, ' ')} plan`, goal, desiredPlanWeeks: Math.max(4, Math.min(30, weeks)), planStartDate: start, injuries: [] })
+      setPendingPlan({ planName: `${goal.replace(/_/g, ' ')} plan`, goal, desiredPlanWeeks: Math.max(4, Math.min(30, weeks)), planStartDate: start })
       setConversation((current) => [...current, { id: Date.now(), role: 'athlete', text: question.trim() }, { id: Date.now() + 1, role: 'coach', text: 'I prepared a concise plan proposal from your request. Review it below, then choose Create plan, Adjust, or Dismiss.' }])
       setCoachQuestion('')
       return
@@ -274,9 +275,20 @@ export default function CoachToday({
   }
 
   const schedulePendingPlan = async () => {
-    if (!pendingPlan || !onCreatePlan) return
-    await onCreatePlan(pendingPlan)
+    if (!pendingPlan || !onCreatePlan || planScheduling) return
+
+    const submittedPlan = pendingPlan
+    setPlanScheduling(true)
     setPendingPlan(null)
+    try {
+      await onCreatePlan(submittedPlan)
+      setConversation((current) => [...current, { id: Date.now(), role: 'coach', text: isPortuguese ? 'Plano criado e adicionado ao calendário.' : 'Plan created and added to the calendar.' }])
+    } catch (error) {
+      setPendingPlan(submittedPlan)
+      setConversation((current) => [...current, { id: Date.now(), role: 'coach', text: error instanceof Error ? error.message : (isPortuguese ? 'Não foi possível criar o plano.' : 'The plan could not be created.') }])
+    } finally {
+      setPlanScheduling(false)
+    }
   }
 
   return (
@@ -311,7 +323,7 @@ export default function CoachToday({
             </div>
             <p className={styles.proposalPrompt}>{isPortuguese ? 'O seu perfil de atleta e a disponibilidade semanal vão definir o calendário.' : 'Your saved athlete profile and weekly availability will shape the calendar.'}</p>
             <div className={styles.proposalActions}>
-              <button type="button" className={styles.primaryAction} onClick={() => { void schedulePendingPlan() }}>{t('schedule')}</button>
+              <button type="button" className={styles.primaryAction} onClick={() => { void schedulePendingPlan() }} disabled={planScheduling}>{planScheduling ? t('creating') : t('schedule')}</button>
               <button type="button" className={styles.secondaryAction} onClick={() => setCoachQuestion(isPortuguese ? 'Alterar o plano: ' : 'Change the plan: ')} disabled={coachLoading}>{t('tweak')}</button>
               <button type="button" className={styles.dismissAction} onClick={() => setPendingPlan(null)} disabled={coachLoading}>{t('dismiss')}</button>
             </div>

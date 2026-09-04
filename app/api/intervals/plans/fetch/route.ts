@@ -1,5 +1,6 @@
 import type { TrainingPlan, TrainingSession, TrainingWeek } from '@/app/lib/types'
 import { getIntervalsConfigFromRequest, hasIntervalsConfig, intervalsRequest, toLocalIsoDate } from '../../_utils'
+import { getAuthenticatedIntervalsConfig } from '../../serverConfig'
 
 type IntervalsEvent = {
   id?: number
@@ -28,7 +29,7 @@ type PlansResponse = {
  */
 export async function POST(request: Request): Promise<Response> {
   try {
-    const config = getIntervalsConfigFromRequest(request)
+    const config = (await getAuthenticatedIntervalsConfig()) ?? getIntervalsConfigFromRequest(request)
     if (!hasIntervalsConfig(config)) {
       return Response.json(
         {

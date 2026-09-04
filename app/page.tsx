@@ -106,14 +106,9 @@ const RIDE_INTENSITY_COLORS = {
 } as const
 
 export default function Home() {
-  const [redirecting] = useState(true)
   useEffect(() => {
     window.location.replace('/coach')
   }, [])
-
-  if (redirecting) {
-    return <main aria-label="Opening coach">Opening your coach…</main>
-  }
 
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<DashboardStats>(DEFAULT_STATS)
@@ -139,7 +134,8 @@ export default function Home() {
       const parsed = JSON.parse(raw) as DashboardWidgetKey[]
       const valid = parsed.filter((key): key is DashboardWidgetKey => key in WIDGET_LABELS)
       if (valid.length > 0) {
-        setEnabledWidgets(valid)
+        const frameId = window.requestAnimationFrame(() => setEnabledWidgets(valid))
+        return () => window.cancelAnimationFrame(frameId)
       }
     } catch {
       // Keep defaults when persisted state is invalid.
@@ -531,14 +527,14 @@ export default function Home() {
 
         <div className={styles.dailySnapshotGrid}>
           <article className={styles.dailyCard}>
-            <h3>Today's Sessions</h3>
+            <h3>Today&apos;s Sessions</h3>
             {!loading && dailySnapshotSummary.sessionsCount > 0 && (
               <p className={styles.dailyCardSummary}>
                 {dailySnapshotSummary.sessionsCount} sessions • {dailySnapshotSummary.totalMinutes} min total
               </p>
             )}
             {loading ? (
-              <p className={styles.emptyState}>Loading today's sessions...</p>
+              <p className={styles.emptyState}>Loading today&apos;s sessions...</p>
             ) : dailySessions.length === 0 ? (
               <p className={styles.emptyState}>No scheduled sessions today across your saved plans.</p>
             ) : (

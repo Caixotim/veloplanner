@@ -1,5 +1,8 @@
 import type { TrainingPlan, TrainingSession } from '@/app/lib/types'
-import { getIntervalsConfigFromRequest, hasIntervalsConfig, intervalsRequest, toLocalIsoDate } from '../_utils'
+import { deduplicateSyncSessions } from '@/app/lib/planSync'
+import { formatDateTimeInTimezone, normalizeTimezone } from '@/app/lib/timezone'
+import { getIntervalsConfigFromRequest, getTimezoneFromRequest, hasIntervalsConfig, intervalsRequest, toLocalIsoDate } from '../_utils'
+import { getAuthenticatedIntervalsConfig } from '../serverConfig'
 
 export const maxDuration = 120
 
@@ -23,6 +26,7 @@ type PlanSyncResponse = {
   failedSessions?: number
   failedSessionIds?: string[]
   syncedEventIds?: number[]
+  syncedLinks?: Array<{ sessionId: string; eventId?: number; externalId?: string }>
   deleted?: number
   error?: string
   details?: string
@@ -31,13 +35,19 @@ type PlanSyncResponse = {
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    const { mode, plan } = (await request.json()) as PlanSyncRequest
+    const body: unknown = await request.json()
+    if (!isPlanSyncRequest(body)) {
+      return Response.json({ error: 'Invalid plan sync request' }, { status: 400 })
+    }
+
+    const { mode, plan } = body
+    const timeZone = normalizeTimezone(plan.timezone || getTimezoneFromRequest(request))
 
     if (!plan?.id) {
       return Response.json({ error: 'Plan payload is required' }, { status: 400 })
     }
 
-    const config = getIntervalsConfigFromRequest(request)
+    const config = (await getAuthenticatedIntervalsConfig()) ?? getIntervalsConfigFromRequest(request)
     if (!hasIntervalsConfig(config)) {
       return Response.json(
         {
@@ -66,6 +76,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const syncedEventIds: number[] = []
+    const syncedLinks: Array<{ sessionId: string; eventId?: number; externalId?: string }> = []
     const failedSessionIds: string[] = []
     const capacityFailedSessionIds = new Set<string>()
     // Intervals.icu applies a strict write rate limit. Limited concurrency avoids
@@ -81,12 +92,12 @@ export async function POST(request: Request): Promise<Response> {
         }
       }
     }
+    const uniqueSessions = deduplicateSyncSessions(allSessions)
 
-    const saturatedDates = await findSaturatedEventDates(config.athleteId, allSessions, config)
-    const sessionsToSync = allSessions.filter(({ session }) => !saturatedDates.has(toLocalIsoDate(toDate(session.date))))
-    if (saturatedDates.size > 0) {
-      console.warn('Skipping sessions on Intervals.icu saturated dates', { dates: [...saturatedDates], skipped: allSessions.length - sessionsToSync.length })
-    }
+    // Capacity is checked per session in ensureDailyEventCapacity(). Doing it
+    // there preserves updates to an existing event while rejecting only new
+    // events on a full date.
+    const sessionsToSync = uniqueSessions
 
     // Process sessions in batches to improve reliability on mobile connections
     for (let i = 0; i < sessionsToSync.length; i += BATCH_SIZE) {
@@ -97,15 +108,16 @@ export async function POST(request: Request): Promise<Response> {
 
       const promises = batch.map(async ({ week, session }) => {
         try {
-          const created = await upsertIntervalsSession(config, plan, externalPlanId, week, session)
+          const created = await upsertIntervalsSession(config, plan, externalPlanId, week, session, { timeZone })
           return {
             sessionId: session.id,
             eventId: created.id || null,
+            externalId: created.external_id,
           }
         } catch (error) {
           if (isIntervalsCapacityError(error)) {
             capacityFailedSessionIds.add(session.id)
-            console.warn('Skipping session because Intervals.icu date is full', { sessionId: session.id, date: toLocalIsoDate(toDate(session.date)) })
+            console.warn('Skipping session because Intervals.icu date is full', { sessionId: session.id, date: toLocalIsoDate(toDate(session.date), timeZone) })
           } else {
             console.warn(`Failed to sync session in batch: ${session.id}`, { error })
           }
@@ -121,6 +133,7 @@ export async function POST(request: Request): Promise<Response> {
         if (result.status === 'fulfilled') {
           if (result.value.eventId) {
             syncedEventIds.push(result.value.eventId)
+            syncedLinks.push({ sessionId: result.value.sessionId, eventId: result.value.eventId, externalId: result.value.externalId })
           } else {
             failedSessionIds.push(result.value.sessionId)
           }
@@ -137,16 +150,17 @@ export async function POST(request: Request): Promise<Response> {
       for (const { week, session } of retrySessions) {
         await wait(1_000)
         try {
-          const created = await upsertIntervalsSession(config, plan, externalPlanId, week, session, { minimalPayload: true })
+          const created = await upsertIntervalsSession(config, plan, externalPlanId, week, session, { minimalPayload: true, timeZone })
           if (created.id) {
             syncedEventIds.push(created.id)
+            syncedLinks.push({ sessionId: session.id, eventId: created.id, externalId: created.external_id })
           } else {
             failedSessionIds.push(session.id)
           }
         } catch (retryError) {
           if (isIntervalsCapacityError(retryError)) {
             capacityFailedSessionIds.add(session.id)
-            console.warn('Skipping retry because Intervals.icu date is full', { sessionId: session.id, date: toLocalIsoDate(toDate(session.date)) })
+            console.warn('Skipping retry because Intervals.icu date is full', { sessionId: session.id, date: toLocalIsoDate(toDate(session.date), timeZone) })
           } else {
             console.warn(`Retry failed for session: ${session.id}`, { retryError })
           }
@@ -165,7 +179,7 @@ export async function POST(request: Request): Promise<Response> {
       planId: plan.id,
       mode,
       sessionsSynced: syncedEventIds.length,
-      sessionsAttempted: allSessions.length,
+      sessionsAttempted: uniqueSessions.length,
       sessionsFailed: failedSessionIds.length,
     })
 
@@ -174,12 +188,13 @@ export async function POST(request: Request): Promise<Response> {
         success: false,
         externalPlanId,
         syncedEvents: syncedEventIds.length,
-        attemptedSessions: allSessions.length,
+        attemptedSessions: uniqueSessions.length,
         failedSessions: failedSessionIds.length,
         failedSessionIds,
         syncedEventIds,
+        syncedLinks,
         error: 'Partial plan sync',
-        details: `Synced ${syncedEventIds.length}/${allSessions.length} sessions. ${failedSessionIds.length} sessions failed (${failedSessionIds.join(', ')}).`,
+        details: `Synced ${syncedEventIds.length}/${uniqueSessions.length} sessions. ${failedSessionIds.length} sessions failed (${failedSessionIds.join(', ')}).`,
       } satisfies PlanSyncResponse)
     }
 
@@ -187,10 +202,11 @@ export async function POST(request: Request): Promise<Response> {
       success: true,
       externalPlanId,
       syncedEvents: syncedEventIds.length,
-      attemptedSessions: allSessions.length,
+      attemptedSessions: uniqueSessions.length,
       failedSessions: 0,
       failedSessionIds: [],
       syncedEventIds,
+      syncedLinks,
     } satisfies PlanSyncResponse)
   } catch (error) {
     if (isIntervalsSubscriptionError(error)) {
@@ -211,6 +227,16 @@ export async function POST(request: Request): Promise<Response> {
       { status: 500 }
     )
   }
+}
+
+export function isPlanSyncRequest(value: unknown): value is PlanSyncRequest {
+  if (!value || typeof value !== 'object') return false
+  const body = value as { mode?: unknown; plan?: unknown }
+  if (body.mode !== 'upsert' && body.mode !== 'replace' && body.mode !== 'delete') return false
+  if (!body.plan || typeof body.plan !== 'object') return false
+
+  const plan = body.plan as { id?: unknown; weeks?: unknown[] }
+  return typeof plan.id === 'string' && plan.id.length > 0 && Array.isArray(plan.weeks)
 }
 
 async function bulkDeleteByExternalIds(athleteId: string, externalIds: string[], config: { apiKey: string; athleteId: string; baseUrl: string }): Promise<number> {
@@ -270,30 +296,6 @@ async function deleteAllVeloPlannerEvents(
   return deleted
 }
 
-async function findSaturatedEventDates(
-  athleteId: string,
-  sessions: Array<{ session: TrainingSession }>,
-  config: { apiKey: string; athleteId: string; baseUrl: string }
-): Promise<Set<string>> {
-  try {
-    const wantedDates = new Set(sessions.map(({ session }) => toLocalIsoDate(toDate(session.date))))
-    const counts = new Map<string, number>()
-    for (let page = 0; page < 20; page++) {
-      const response = await intervalsRequest(`/api/v1/athlete/${athleteId}/events?limit=500&offset=${page * 500}`, {}, config)
-      const events = (await response.json()) as Array<{ start_date_local?: string; start_date?: string }>
-      for (const event of events) {
-        const date = (event.start_date_local || event.start_date || '').slice(0, 10)
-        if (wantedDates.has(date)) counts.set(date, (counts.get(date) || 0) + 1)
-      }
-      if (events.length < 500) break
-    }
-    return new Set([...counts.entries()].filter(([, count]) => count >= 20).map(([date]) => date))
-  } catch (error) {
-    console.warn('Unable to inspect Intervals.icu event capacity before sync', { error })
-    return new Set()
-  }
-}
-
 async function listPlanEventExternalIds(
   athleteId: string,
   externalPlanId: string,
@@ -333,7 +335,10 @@ function wait(milliseconds: number): Promise<void> {
 }
 
 function isIntervalsCapacityError(error: unknown): boolean {
-  return error instanceof Error && /Too many events.*max is 20/i.test(error.message)
+  return error instanceof Error && (
+    /Too many events.*max is 20/i.test(error.message) ||
+    /already has \d+ events; refusing to delete existing workouts/i.test(error.message)
+  )
 }
 
 async function upsertIntervalsSession(
@@ -342,10 +347,10 @@ async function upsertIntervalsSession(
   externalPlanId: string,
   week: number,
   session: TrainingSession,
-  options: { minimalPayload?: boolean } = {}
+  options: { minimalPayload?: boolean; timeZone?: string } = {}
 ): Promise<SyncedEvent> {
   const payload = buildIntervalsEventPayload(plan, externalPlanId, week, session, options)
-  await ensureDailyEventCapacity(config, session, payload.external_id as string)
+  await ensureDailyEventCapacity(config, session, payload.external_id as string, options.timeZone)
   const response = await intervalsRequest(
     `/api/v1/athlete/${config.athleteId}/events?upsertOnUid=true`,
     {
@@ -363,9 +368,10 @@ const MAX_EVENTS_PER_DAY = 5
 async function ensureDailyEventCapacity(
   config: { apiKey: string; athleteId: string; baseUrl: string },
   session: TrainingSession,
-  currentExternalId: string
+  currentExternalId: string,
+  timeZone = 'UTC'
 ): Promise<void> {
-  const date = toLocalIsoDate(toDate(session.date))
+  const date = toLocalIsoDate(toDate(session.date), timeZone)
   const response = await intervalsRequest(
     `/api/v1/athlete/${config.athleteId}/events?oldest=${date}&newest=${date}&limit=500`,
     {},
@@ -377,33 +383,15 @@ async function ensureDailyEventCapacity(
   const requiredRemovals = Math.max(0, sameDayEvents.length + (existingCurrentEvent ? 0 : 1) - MAX_EVENTS_PER_DAY)
   if (requiredRemovals === 0) return
 
-  const removable = sameDayEvents
-    .filter((event) => event.external_id && event.external_id !== currentExternalId && (event.name?.includes('[AI]') || event.external_id.startsWith('plan_')))
-    .sort((left, right) => eventCreatedTimestamp(left) - eventCreatedTimestamp(right))
-    .slice(0, requiredRemovals)
-
-  if (removable.length < requiredRemovals) {
-    throw new Error(`Intervals.icu date ${date} already has ${sameDayEvents.length} events; cannot keep the app limit of ${MAX_EVENTS_PER_DAY} without deleting non-VeloPlanner events.`)
-  }
-
-  await bulkDeleteByExternalIds(config.athleteId, removable.map((event) => event.external_id as string), config)
-  console.info('Purged oldest VeloPlanner sessions to keep daily event limit', { date, deleted: removable.length })
+  throw new Error(`Intervals.icu date ${date} already has ${sameDayEvents.length} events; refusing to delete existing workouts to publish another session.`)
 }
 
 type IntervalsEventForCapacity = {
-  id?: number
   uid?: string
   external_id?: string
   name?: string
   start_date?: string
   start_date_local?: string
-  created?: string
-  created_at?: string
-}
-
-function eventCreatedTimestamp(event: IntervalsEventForCapacity): number {
-  const created = Date.parse(event.created_at || event.created || '')
-  return Number.isNaN(created) ? event.id || Number.MAX_SAFE_INTEGER : created
 }
 
 function buildIntervalsEventPayload(
@@ -411,7 +399,7 @@ function buildIntervalsEventPayload(
   externalPlanId: string,
   week: number,
   session: TrainingSession,
-  options: { minimalPayload?: boolean } = {}
+  options: { minimalPayload?: boolean; timeZone?: string } = {}
 ): Record<string, unknown> {
   const startDate = toDate(session.date)
   const endDate = new Date(startDate.getTime() + session.duration * 60 * 1000)
@@ -432,10 +420,10 @@ function buildIntervalsEventPayload(
           filename: structuredFile.filename,
         }
       : {}),
-    start_date_local: toLocalDateTime(startDate),
-    end_date_local: toLocalDateTime(endDate),
-    start_date: toLocalIsoDate(startDate),
-    end_date: toLocalIsoDate(endDate),
+    start_date_local: toLocalDateTime(startDate, options.timeZone),
+    end_date_local: toLocalDateTime(endDate, options.timeZone),
+    start_date: toLocalIsoDate(startDate, options.timeZone),
+    end_date: toLocalIsoDate(endDate, options.timeZone),
     uid: buildExternalEventId(externalPlanId, session.id),
     external_id: buildExternalEventId(externalPlanId, session.id),
     moving_time: Math.max(0, session.duration * 60),
@@ -700,12 +688,6 @@ function escapeXml(value: string): string {
     .replace(/'/g, '&apos;')
 }
 
-function toLocalDateTime(date: Date): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  const seconds = String(date.getSeconds()).padStart(2, '0')
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`
+function toLocalDateTime(date: Date, timeZone = 'UTC'): string {
+  return formatDateTimeInTimezone(date, timeZone)
 }

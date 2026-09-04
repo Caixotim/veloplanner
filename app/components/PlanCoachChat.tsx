@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { UserProfile } from '../lib/types'
 import { useLocale } from '../lib/i18n'
 import { parsePlanStartDate } from '../lib/planRequest'
@@ -13,12 +13,7 @@ export default function PlanCoachChat({ onCreatePlan, loading = false }: PlanCoa
   const [request, setRequest] = useState('')
   const [proposal, setProposal] = useState<Partial<UserProfile> | null>(null)
   const [message, setMessage] = useState(t('planRequestHint'))
-
-  useEffect(() => {
-    if (!proposal) {
-      setMessage(t('planRequestHint'))
-    }
-  }, [proposal, t])
+  const [scheduling, setScheduling] = useState(false)
 
   const understandRequest = () => {
     const text = request.trim().toLowerCase()
@@ -31,20 +26,29 @@ export default function PlanCoachChat({ onCreatePlan, loading = false }: PlanCoa
       goal: goal as UserProfile['goal'],
       desiredPlanWeeks: Math.max(4, Math.min(30, weeks)),
       planStartDate: startDate,
-      // A new plan should not inherit historical injury flags from an older plan.
-      // Active constraints can be added explicitly in the athlete profile later.
-      injuries: [],
     }
     setProposal(next)
     setMessage(isPortuguese ? 'Percebi o seu pedido. Reveja o plano abaixo e escolha Agendar, Ajustar ou Dispensar.' : 'I understood your request. Review the schedule below, then choose Schedule, Tweak, or Dismiss.')
   }
 
   const schedulePlan = async () => {
-    if (!proposal) return
-    await onCreatePlan(proposal)
+    if (!proposal || scheduling) return
+
+    const submittedProposal = proposal
+    setScheduling(true)
     setProposal(null)
-    setRequest('')
-    setMessage(isPortuguese ? 'Plano criado e adicionado ao calendário.' : 'Plan created and added to the calendar.')
+    setMessage(isPortuguese ? 'A criar o seu plano…' : 'Creating your plan…')
+
+    try {
+      await onCreatePlan(submittedProposal)
+      setRequest('')
+      setMessage(isPortuguese ? 'Plano criado e adicionado ao calendário.' : 'Plan created and added to the calendar.')
+    } catch (error) {
+      setProposal(submittedProposal)
+      setMessage(error instanceof Error ? error.message : (isPortuguese ? 'Não foi possível criar o plano.' : 'The plan could not be created.'))
+    } finally {
+      setScheduling(false)
+    }
   }
 
   return <section className={styles.coachInputCard} aria-labelledby="plan-coach-title">
@@ -53,7 +57,7 @@ export default function PlanCoachChat({ onCreatePlan, loading = false }: PlanCoa
     <p className={styles.coachAnswer}>{message}</p>
     <div className={styles.coachInputRow}>
       <input value={request} onChange={(event) => setRequest(event.target.value)} placeholder={isPortuguese ? 'ex.: Criar resistência durante 12 semanas' : 'e.g. Build endurance for 12 weeks'} disabled={loading} aria-label={isPortuguese ? 'Descreva o seu plano de treino' : 'Describe your training plan'} />
-      <button type="button" className={styles.primaryAction} onClick={understandRequest} disabled={loading || !request.trim()}>{t('reviewPlan')}</button>
+      <button type="button" className={styles.primaryAction} onClick={understandRequest} disabled={loading || scheduling || !request.trim()}>{t('reviewPlan')}</button>
     </div>
     {proposal && (
       <article className={styles.proposalCard} aria-label="Proposed training plan">
@@ -71,8 +75,8 @@ export default function PlanCoachChat({ onCreatePlan, loading = false }: PlanCoa
         </div>
         <p className={styles.proposalPrompt}>{t('proposalPrompt')}</p>
         <div className={styles.proposalActions}>
-          <button type="button" className={styles.primaryAction} onClick={() => { void schedulePlan() }} disabled={loading}>
-            {loading ? t('creating') : t('schedule')}
+          <button type="button" className={styles.primaryAction} onClick={() => { void schedulePlan() }} disabled={loading || scheduling}>
+            {loading || scheduling ? t('creating') : t('schedule')}
           </button>
           <button type="button" className={styles.secondaryAction} onClick={() => setMessage(isPortuguese ? 'Diga-me o que pretende alterar, como a duração, a data de início, o objectivo ou os dias disponíveis.' : 'Tell me what you want changed, such as duration, start date, goal, or available days.')} disabled={loading}>{t('tweak')}</button>
           <button type="button" className={styles.dismissAction} onClick={() => setProposal(null)} disabled={loading}>{t('dismiss')}</button>

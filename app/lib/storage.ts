@@ -53,9 +53,24 @@ export interface IntegrationCredentials {
  */
 class StorageManager {
   private db: IDBDatabase | null = null
-  private readonly dbName = 'CyclingAI'
+  private readonly baseDbName = 'CyclingAI'
+  private dbName = this.baseDbName
   private readonly version = 6
   private readonly activeProfileKey = 'active-profile'
+
+  /**
+   * Switch the local cache to an account-specific database. Passing no ID
+   * selects the legacy anonymous database used before authentication.
+   * Existing connections are closed before the next operation opens the new
+   * namespace, preventing cached data from leaking across accounts.
+   */
+  async setAccountScope(accountId?: string): Promise<void> {
+    const nextDbName = accountId ? `${this.baseDbName}:account:${encodeURIComponent(accountId)}` : this.baseDbName
+    if (nextDbName === this.dbName) return
+    this.db?.close()
+    this.db = null
+    this.dbName = nextDbName
+  }
 
   /**
    * Initialize IndexedDB database and create stores
@@ -270,6 +285,30 @@ class StorageManager {
     return new Promise((resolve, reject) => {
       const request = store.put(storedPlan)
       request.onsuccess = () => resolve(planId)
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  /**
+   * Replace a cached plan snapshot without recording a local edit.
+   * Cloud reads use this to refresh the cache while preserving local metadata.
+   */
+  async cachePlan(storedPlan: StoredPlan): Promise<void> {
+    if (!this.db) await this.init()
+
+    const existing = await this.loadPlan(storedPlan.id)
+    const snapshot: StoredPlan = {
+      ...(existing ?? storedPlan),
+      ...storedPlan,
+      plan: hydrateTrainingPlanDates(storedPlan.plan) || storedPlan.plan,
+      originalPlan: existing?.originalPlan ?? storedPlan.originalPlan,
+      edits: existing?.edits ?? storedPlan.edits,
+      isModified: existing?.isModified ?? storedPlan.isModified,
+    }
+    const tx = this.db!.transaction(['plans'], 'readwrite')
+    return new Promise((resolve, reject) => {
+      const request = tx.objectStore('plans').put(snapshot)
+      request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
   }

@@ -1,4 +1,5 @@
 import { getIntervalsConfigFromRequest, hasIntervalsConfig, intervalsRequest } from '../_utils'
+import { getAuthenticatedIntervalsConfig } from '../serverConfig'
 
 type EventsSyncRequest = {
   oldest: string
@@ -24,7 +25,7 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ success: false, error: 'oldest and newest are required' }, { status: 400 })
     }
 
-    const config = getIntervalsConfigFromRequest(request)
+    const config = (await getAuthenticatedIntervalsConfig()) ?? getIntervalsConfigFromRequest(request)
     if (!hasIntervalsConfig(config)) {
       return Response.json(
         {

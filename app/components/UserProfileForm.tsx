@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
+import { getDefaultTimezone } from '../lib/timezone'
 import clsx from 'clsx'
 import styles from './UserProfileForm.module.scss'
 import type {
@@ -158,12 +159,19 @@ export function UserProfileForm({
   }
 
   const toggleInjury = (injury: InjuryType) => {
-    setProfile(prev => ({
-      ...prev,
-      injuries: prev.injuries?.includes(injury)
-        ? prev.injuries.filter(i => i !== injury)
-        : [...(prev.injuries || []), injury],
-    }))
+    setProfile((prev) => {
+      const current = prev.injuries?.length ? prev.injuries : ['none'] as InjuryType[]
+
+      if (injury === 'none') {
+        return { ...prev, injuries: ['none'] }
+      }
+
+      const next = current.filter((item) => item !== 'none' && item !== injury)
+      return {
+        ...prev,
+        injuries: current.includes(injury) ? (next.length ? next : ['none']) : [...next, injury],
+      }
+    })
   }
 
   const updatePlannedEvent = (index: number, next: Partial<PlannedEventDraft>) => {
@@ -656,6 +664,18 @@ export function UserProfileForm({
             </div>
           ))}
         </div>
+        <div className={styles.group}>
+          <label htmlFor="timezone">{translateText('Athlete timezone')}</label>
+          <input
+            id="timezone"
+            type="text"
+            value={profile.timezone || ''}
+            onChange={e => setProfile({ ...profile, timezone: e.target.value })}
+            disabled={loading}
+            placeholder="e.g. Europe/Lisbon"
+          />
+          <span className={styles.hint}>{translateText('Used for plan dates and Intervals.icu calendar events.')}</span>
+        </div>
       </div>
 
       <div className={styles.section}>
@@ -746,6 +766,7 @@ function mergeWithDefaultProfile(initialProfile?: Partial<UserProfile>): Partial
     weight: 75,
     goal: 'ftp_increase',
     planStartDate: defaultPlanStartDate,
+    timezone: getDefaultTimezone(),
     desiredPlanWeeks: 12,
     intensityDistribution: 'conservative',
     qualityPriority: 'balanced',
@@ -758,7 +779,7 @@ function mergeWithDefaultProfile(initialProfile?: Partial<UserProfile>): Partial
     dailyFatTargetGrams: undefined,
     ftpIncreaseTargetWatts: 0,
     equipment: [],
-    injuries: [],
+    injuries: ['none'],
     hasPowerMeter: false,
     plannedEvents: [],
     ...initialProfile,

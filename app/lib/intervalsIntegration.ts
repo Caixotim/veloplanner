@@ -32,6 +32,7 @@ type IntervalsRidesResponse = {
   rides: IntervalRide[]
   newRidesCount: number
   changes: Array<{ type: string; label: string }>
+  nextCursor?: number
   error?: string
 }
 
@@ -360,13 +361,17 @@ export async function syncIntervalsDelta(_accessToken: string, userProfile: User
     }
 
     const rides = ridesResult.rides || []
+    const nextCursor =
+      typeof ridesResult.nextCursor === 'number' && Number.isFinite(ridesResult.nextCursor)
+        ? ridesResult.nextCursor
+        : rides.length > 0
+          ? Math.max(...rides.map((ride) => ride.date))
+          : syncMeta.lastSyncTime
 
     if (rides.length === 0) {
-      // On 0 results, reset lastSyncTime to 0 to ensure next sync tries full 90-day lookback.
-      // This prevents getting stuck in a "no new rides" loop when forceRefresh or initial sync.
       await storage.updateSyncMetadata({
         lastSyncStatus: 'success',
-        lastSyncTime: forceRefresh ? 0 : syncMeta.lastSyncTime,
+        lastSyncTime: nextCursor,
       })
 
       return {
@@ -381,7 +386,7 @@ export async function syncIntervalsDelta(_accessToken: string, userProfile: User
 
     // Store the newest ride timestamp for next delta sync
     // This ensures next sync fetches only rides after the most recent one we just retrieved
-    const newestRideTime = Math.max(...rides.map((r) => r.date))
+    const newestRideTime = nextCursor
 
     for (const ride of rides) {
       await storage.cacheRide(`ride-${ride.id}`, {
@@ -422,7 +427,7 @@ export async function syncIntervalsDelta(_accessToken: string, userProfile: User
 
     await storage.updateSyncMetadata({
       lastSyncStatus: 'success',
-      lastSyncTime: newestRideTime,
+      lastSyncTime: Math.max(syncMeta.lastSyncTime, newestRideTime),
       totalRidesSynced: (syncMeta.totalRidesSynced || 0) + rides.length,
     })
 

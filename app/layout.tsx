@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { AppHeader } from './components/AppHeader'
 import { LocaleText } from './components/LocaleText'
 import { LocaleProvider } from './lib/i18n'
+import { AccountMigrationPrompt } from './components/AccountMigrationPrompt'
 import './globals.css'
 import './print.css'
 
@@ -50,6 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
         <LocaleProvider>
         <AppHeader />
+        <AccountMigrationPrompt />
         <main>{children}</main>
         <footer className="footer">
           <p>&copy; 2026 VeloPlanner. <LocaleText>All rights reserved.</LocaleText></p>

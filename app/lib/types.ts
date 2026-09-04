@@ -22,6 +22,8 @@ export type TrainingPhase = 'build' | 'peak' | 'recovery' | 'base'
 
 export type SessionType = 'endurance' | 'tempo' | 'threshold' | 'vo2max' | 'anaerobic' | 'strength' | 'recovery'
 
+export type TrainingPlanStatus = 'draft' | 'active' | 'archived'
+
 export type StressSource = 'planned' | 'completed'
 
 export interface UserProfile {
@@ -41,6 +43,7 @@ export interface UserProfile {
   dailyCarbTargetGrams?: number
   dailyFatTargetGrams?: number
   planStartDate?: string // YYYY-MM-DD local date
+  timezone?: string // IANA timezone used for plan and Intervals calendar dates
   desiredPlanWeeks?: number
   ftpIncreaseTargetWatts?: number
   plannedEvents?: Array<{
@@ -181,6 +184,10 @@ export interface TrainingPlan {
   id: string
   externalPlanId?: string
   userId: string
+  timezone?: string // IANA timezone used for Intervals event dates
+  /** Lifecycle state used by cloud persistence; omitted for legacy local plans. */
+  status?: TrainingPlanStatus
+  revision?: number
   name: string
   goal: TrainingGoal
   durationWeeks: number
@@ -199,6 +206,7 @@ export interface TrainingPlan {
     syncedAt?: string
     lastError?: string
   }
+  publishedAt?: string
   createdAt: Date
   updatedAt: Date
 }

@@ -1,4 +1,6 @@
-import { getIntervalsConfigFromRequest, hasIntervalsConfig, intervalsRequest, toLocalIsoDate } from '../_utils'
+import { getIntervalsConfigFromRequest, getTimezoneFromRequest, hasIntervalsConfig, intervalsRequest, toLocalIsoDate } from '../_utils'
+import { getAuthenticatedIntervalsConfig } from '../serverConfig'
+import { filterStableActivities, getRideCursor } from '../../../lib/rideSync'
 
 
 type SyncRequest = {
@@ -102,11 +104,16 @@ function extractBestEfforts(activity: IntervalsActivity): {
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    const body = (await request.json()) as SyncRequest
-    const since = typeof body.since === 'number' ? body.since : 0
-    const forceRefresh = body.forceRefresh === true
+    const body: unknown = await request.json()
+    if (!isSyncRequest(body)) {
+      return Response.json({ error: 'Invalid rides sync request' }, { status: 400 })
+    }
 
-    const config = getIntervalsConfigFromRequest(request)
+    const since = body.since ?? 0
+    const forceRefresh = body.forceRefresh === true
+    const timeZone = getTimezoneFromRequest(request)
+
+    const config = (await getAuthenticatedIntervalsConfig()) ?? getIntervalsConfigFromRequest(request)
     if (!hasIntervalsConfig(config)) {
       return Response.json(
         {
@@ -130,8 +137,8 @@ export async function POST(request: Request): Promise<Response> {
       oldestMs = since
     }
 
-    const oldest = toLocalIsoDate(oldestMs)
-    const newest = toLocalIsoDate(Date.now())
+    const oldest = toLocalIsoDate(oldestMs, timeZone)
+    const newest = toLocalIsoDate(Date.now(), timeZone)
 
     const response = await intervalsRequest(
       `/api/v1/athlete/${config.athleteId}/activities?oldest=${encodeURIComponent(oldest)}&newest=${encodeURIComponent(newest)}&limit=100`,
@@ -140,7 +147,8 @@ export async function POST(request: Request): Promise<Response> {
     )
 
     const activities = (await response.json()) as IntervalsActivity[]
-    const rides = activities.map((activity) => {
+    const rides = filterStableActivities(activities)
+      .map((activity) => {
       const bestEfforts = extractBestEfforts(activity)
       const peakPower = Math.round(activity.icu_pm_p_max || activity.icu_rolling_p_max || activity.p_max || 0)
       const normalizedPower = Math.round(activity.icu_weighted_avg_watts || 0)
@@ -164,7 +172,7 @@ export async function POST(request: Request): Promise<Response> {
       const sweetSpotZoneSecs = powerZoneTimes.SS || 0
 
       return {
-        id: String(activity.id || `ride-${Math.random()}`),
+        id: String(activity.id),
         date: activity.start_date_local ? new Date(activity.start_date_local).getTime() : Date.now(),
         maxPower: peakPower,
         peakPower,
@@ -187,7 +195,7 @@ export async function POST(request: Request): Promise<Response> {
         distance: Math.round((activity.distance || 0) / 100) / 10,
         maxHR: Math.round(activity.max_heartrate || 0),
       }
-    })
+      })
 
     console.info('Intervals rides synced', { count: rides.length, oldest, newest })
 
@@ -195,6 +203,7 @@ export async function POST(request: Request): Promise<Response> {
       success: true,
       newRidesCount: rides.length,
       rides,
+      ...(rides.length > 0 ? { nextCursor: getRideCursor(rides.map((ride) => ride.date), Date.now()) } : {}),
       changes:
         rides.length > 0
           ? [
@@ -212,4 +221,13 @@ export async function POST(request: Request): Promise<Response> {
       { status: 500 }
     )
   }
+}
+
+export function isSyncRequest(value: unknown): value is SyncRequest {
+  if (!value || typeof value !== 'object') return false
+  const body = value as { since?: unknown; forceRefresh?: unknown }
+  return (
+    (body.since === undefined || (typeof body.since === 'number' && Number.isFinite(body.since) && body.since >= 0)) &&
+    (body.forceRefresh === undefined || typeof body.forceRefresh === 'boolean')
+  )
 }
