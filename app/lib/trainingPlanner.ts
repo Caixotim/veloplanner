@@ -624,8 +624,7 @@ function selectAvailableSessionTemplates(
     return []
   }
 
-  const weeklyHours = availableDays.reduce((sum, day) => sum + day.minutes / 60, 0)
-  const maximumSessions = weeklyHours < 3 ? 1 : weeklyHours < 6 ? 2 : weeklyHours < 10 ? 3 : 4
+  const maximumSessions = Math.min(4, availableDays.length)
   const selectedDays = new Set(availableDays.slice(0, Math.min(maximumSessions, availableDays.length)).map(({ day }) => day))
 
   return templates.filter((template) => selectedDays.has(template.day))

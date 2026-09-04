@@ -86,6 +86,42 @@ describe('generateTrainingPlan availability constraints', () => {
     expect(trainableSessions[0].duration).toBeLessThanOrEqual(180)
   })
 
+  it('creates sessions across available days even when weekly hours are below six', () => {
+    const profile: UserProfile = {
+      id: 'athlete-available-days',
+      age: 35,
+      height: 180,
+      weight: 75,
+      goal: 'endurance',
+      injuries: ['none'],
+      equipment: [],
+      hasPowerMeter: false,
+      availableTime: {
+        monday: 1,
+        tuesday: 0,
+        wednesday: 0.5,
+        thursday: 0,
+        friday: 1,
+        saturday: 0,
+        sunday: 3,
+      },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+
+    const plan = generateTrainingPlan(
+      profile.id,
+      { name: 'Available-days test', goal: profile.goal, durationWeeks: 1, startDate: new Date(2026, 8, 7, 6) },
+      profile,
+    )
+
+    const trainingDays = plan.weeks[0].sessions
+      .filter((session) => session.duration > 0)
+      .map((session) => session.date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase())
+
+    expect(trainingDays).toEqual(['monday', 'wednesday', 'friday', 'sunday'])
+  })
+
   it('starts each generated week after the previous week without date overlap', () => {
     const profile: UserProfile = {
       id: 'athlete-two-weeks',
