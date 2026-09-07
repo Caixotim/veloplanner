@@ -1,0 +1,112 @@
+.localeSwitcher {
+  position: relative;
+  width: min(190px, 100%);
+}
+
+.trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--theme-border-light);
+  border-radius: 12px;
+  background: var(--theme-surface-secondary);
+  color: var(--theme-text-primary);
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.trigger:hover,
+.trigger:focus-visible {
+  border-color: var(--theme-accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--theme-focus-ring);
+}
+
+.triggerLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  transition: transform 0.2s ease;
+}
+
+.triggerOpen .chevron {
+  transform: rotate(180deg);
+}
+
+.menuContainer {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  width: 100%;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-6px) scale(0.98);
+  transition: opacity 0.18s ease, transform 0.2s ease;
+}
+
+.menuOpen {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+.menu {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0.38rem;
+  list-style: none;
+  border: 1px solid var(--theme-border);
+  border-radius: 14px;
+  background: var(--theme-surface);
+  box-shadow: 0 16px 34px var(--theme-card-shadow-strong);
+}
+
+.option {
+  width: 100%;
+  min-height: 2.6rem;
+  padding: 0.58rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--theme-text-primary);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.option:hover,
+.option:focus-visible,
+.optionActive {
+  border-color: color-mix(in srgb, var(--theme-accent) 35%, transparent);
+  background: var(--theme-surface-hover);
+  outline: none;
+}
+
+@media (max-width: 900px) {
+  .localeSwitcher {
+    width: 100%;
+  }
+
+  .menuContainer {
+    position: static;
+    margin-top: 0.4rem;
+    transform: none;
+  }
+
+  .menuOpen {
+    transform: none;
+  }
+}

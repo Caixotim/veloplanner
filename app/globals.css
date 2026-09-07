@@ -198,6 +198,14 @@ body {
   display: none;
 }
 
+.mobileSettings {
+  display: none;
+}
+
+.mobileSettingsLink {
+  display: none;
+}
+
 .logo {
   display: inline-flex;
   align-items: center;
@@ -239,6 +247,26 @@ body {
     padding: 0 0.75rem;
   }
 
+  .mobileSettingsLink {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    margin-left: auto;
+    border: 1px solid var(--theme-nav-pill-border);
+    border-radius: 0.65rem;
+    background: var(--theme-nav-pill-bg);
+    color: var(--theme-header-text);
+    font-size: 1.4rem;
+    line-height: 1;
+    text-decoration: none;
+  }
+
+  .mobileSettingsLink + .mobileMenuToggle {
+    margin-left: -0.5rem;
+  }
+
   .logo,
   .mobileIntegrationsQuickLink {
     display: inline-flex;
@@ -265,6 +293,10 @@ body {
     display: flex;
   }
 
+  .nav.navOpen .settingsMenu {
+    width: 100%;
+  }
+
   .mobileMenuToggle {
     display: inline-flex;
     align-items: center;
@@ -278,6 +310,14 @@ body {
     font-size: 1.5rem;
     line-height: 1;
     cursor: pointer;
+  }
+
+  .desktopSettings {
+    display: none;
+  }
+
+  .nav .mobileOptionalNav {
+    display: none;
   }
 
   .navButton {

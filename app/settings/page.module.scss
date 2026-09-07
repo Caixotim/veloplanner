@@ -1,0 +1,43 @@
+.page {
+  min-height: 60vh;
+  padding: 2rem 1rem;
+}
+
+.card {
+  width: min(100%, 36rem);
+  margin: 0 auto;
+  padding: 1.5rem;
+  border: 1px solid var(--theme-border);
+  border-radius: 1rem;
+  background: var(--theme-surface);
+  color: var(--theme-text-primary);
+  box-shadow: 0 12px 30px var(--theme-card-shadow);
+}
+
+.card h1 {
+  margin: 0 0 1.5rem;
+}
+
+.control {
+  display: grid;
+  gap: 0.6rem;
+  padding: 1rem 0;
+  border-top: 1px solid var(--theme-border);
+}
+
+.control h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.control :global(.localeSwitcher select) {
+  width: 100%;
+  min-height: 2.75rem;
+}
+
+.profileLink {
+  display: inline-flex;
+  margin-top: 1rem;
+  color: var(--theme-accent);
+  font-weight: 700;
+}
