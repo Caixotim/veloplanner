@@ -1,4 +1,11 @@
 .chartsContainer {
+  --chart-grid: #dbe6f1;
+  --chart-axis: #60748a;
+  --chart-power: #2f78d0;
+  --chart-load: #4a9fba;
+  --chart-fatigue: #e18432;
+  --chart-planned: #b8cce5;
+  --chart-completed: #2f78d0;
   margin: 2rem 0;
   padding: 2rem;
   background: linear-gradient(180deg, #ffffff 0%, #f4f7fb 100%);
@@ -16,6 +23,14 @@
 
 :global([data-theme='dark']) .chartsContainer,
 :global([data-theme='neon']) .chartsContainer {
+  --chart-grid: var(--theme-border);
+  --chart-axis: var(--theme-text-tertiary);
+  --chart-power: #6eb4ff;
+  --chart-load: #55d2c0;
+  --chart-fatigue: #ffb45b;
+  --chart-planned: #476582;
+  --chart-completed: #6eb4ff;
+
   h2,
   h3,
   h4 {
@@ -65,10 +80,26 @@
 
   .planningSlot,
   .quickNavLink,
-  .quickNavControlBtn {
+  .quickNavControlBtn,
+  .workoutProfileCard {
     background: var(--theme-surface-tertiary);
     border-color: var(--theme-border);
     color: var(--theme-text-primary);
+  }
+
+  .chartSubtitle,
+  .workoutProfileHeader span {
+    color: var(--theme-text-secondary);
+  }
+
+  .workoutProfileHeader strong {
+    color: var(--theme-text-primary);
+  }
+
+  .workoutProfileType {
+    border-color: var(--theme-border-light);
+    background: var(--theme-surface-secondary);
+    color: var(--theme-accent) !important;
   }
 }
 
@@ -619,6 +650,87 @@
   @media (max-width: 768px) {
     min-height: 280px;
   }
+}
+
+.chartCard :global(.recharts-cartesian-grid-horizontal line),
+.chartCard :global(.recharts-cartesian-grid-vertical line) {
+  stroke: var(--chart-grid);
+  opacity: 0.72;
+}
+
+.chartCard :global(.recharts-cartesian-axis-line),
+.chartCard :global(.recharts-cartesian-axis-tick-line) {
+  stroke: var(--chart-grid);
+}
+
+.chartCard :global(.recharts-cartesian-axis-tick-value),
+.chartCard :global(.recharts-legend-item-text) {
+  fill: var(--chart-axis);
+}
+
+.chartSubtitle {
+  margin: -0.55rem 0 0.8rem;
+  color: #60748a;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.workoutProfilesCard {
+  grid-column: 1 / -1;
+}
+
+.workoutProfilesGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.75rem;
+}
+
+.workoutProfileCard {
+  min-width: 0;
+  border: 1px solid #d7e3f1;
+  border-radius: 10px;
+  background: #f8fbff;
+  padding: 0.65rem;
+}
+
+.workoutProfileHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.55rem;
+  margin-bottom: 0.5rem;
+
+  strong,
+  span {
+    display: block;
+  }
+
+  strong {
+    overflow: hidden;
+    color: #244a70;
+    font-size: 0.78rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  span {
+    margin-top: 0.14rem;
+    color: #60748a;
+    font-size: 0.68rem;
+  }
+}
+
+.workoutProfileType {
+  flex-shrink: 0;
+  border: 1px solid #c7d8eb;
+  border-radius: 999px;
+  background: #edf4fd;
+  color: #2d5f91 !important;
+  padding: 0.14rem 0.4rem;
+  font-size: 0.6rem !important;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .chartTitleRow {

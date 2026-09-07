@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { Line, LineChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, Area, AreaChart, ReferenceLine } from 'recharts'
-import type { BodyMetricsEntry, EventPriority, TrainingPlan, UserProfile } from '@/app/lib/types'
+import type { BodyMetricsEntry, EventPriority, TrainingPlan, TrainingSession, UserProfile } from '@/app/lib/types'
 import { buildDailyLoadSeries, summarizeLoadSeries } from '@/app/lib/loadModel'
 import { computeWeeklyCompliance } from '@/app/lib/compliance'
 import { computeIntensityDistribution } from '@/app/lib/intensityDistribution'
@@ -13,12 +13,15 @@ import { computeRampGuidance, computeWeeklyRampTimeline } from '@/app/lib/rampMo
 import { computeFreshnessScore, computeMonotonyIndex, computeSeasonPhaseOverview, computeWeeklyPlanSuggestion } from '@/app/lib/athleteMetrics'
 import styles from './PerformanceCharts.module.scss'
 import { useLocale } from '../lib/i18n'
+import WorkoutProfileChart from './WorkoutProfileChart'
+import { parseWorkoutProfileSteps } from '@/app/lib/workoutProfile'
 
 /**
  * Props for the PerformanceCharts component
  */
 interface PerformanceChartsProps {
   plan: TrainingPlan
+  hasPowerMeter?: boolean
   ftpTargetOverride?: number
   onCoachActionSelect?: (actionKey: string | null) => void
   plannedEvents?: UserProfile['plannedEvents']
@@ -51,11 +54,26 @@ type CoachAction = {
   priority: 'high' | 'medium' | 'low'
 }
 
+function getSessionLabel(session: TrainingSession): string {
+  const label = session.description
+    .split('|')[0]
+    .replace(/\s*\(L\d+(?:\.\d+)?\)\s*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  return label || `${session.type} workout`
+}
+
+function formatSessionDate(session: TrainingSession): string {
+  return new Date(session.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+}
+
 /**
  * Displays performance analytics with charts
  */
 export default function PerformanceCharts({
   plan,
+  hasPowerMeter = false,
   ftpTargetOverride,
   onCoachActionSelect,
   plannedEvents = [],
@@ -249,6 +267,15 @@ export default function PerformanceCharts({
   }
   const tooltipLabelStyle = { color: 'var(--theme-text-primary)', fontWeight: 700 }
   const tooltipItemStyle = { color: 'var(--theme-text-secondary)' }
+  const chartTokens = {
+    grid: 'var(--chart-grid)',
+    axis: 'var(--chart-axis)',
+    power: 'var(--chart-power)',
+    load: 'var(--chart-load)',
+    fatigue: 'var(--chart-fatigue)',
+    planned: 'var(--chart-planned)',
+    completed: 'var(--chart-completed)',
+  }
 
   // Generate training load heatmap data
   const volumeData = plan.weeks.map((week, idx) => {
@@ -264,6 +291,22 @@ export default function PerformanceCharts({
       date: `W${idx + 1}`,
     }
   })
+
+  const featuredWorkoutSessions = React.useMemo(() => {
+    const allSessions = plan.weeks.flatMap((week) => week.sessions)
+    const sessionsWithProfiles = allSessions
+      .map((session) => ({
+        session,
+        steps: parseWorkoutProfileSteps(session.structuredWorkout, { fallback: false }),
+      }))
+      .filter(({ session, steps }) => session.type !== 'recovery' && steps.length > 0)
+
+    const upcoming = sessionsWithProfiles
+      .filter(({ session }) => new Date(session.date).getTime() >= Date.now())
+      .sort((left, right) => new Date(left.session.date).getTime() - new Date(right.session.date).getTime())
+
+    return (upcoming.length > 0 ? upcoming : sessionsWithProfiles).slice(0, 3)
+  }, [plan])
 
   // Generate power curve from synced Intervals.icu rides (84-day planner window)
   const powerCurveData = [
@@ -633,15 +676,15 @@ export default function PerformanceCharts({
           <div className={styles.bodyMetricsChart}>
             <ResponsiveContainer width="100%" height={240}>
               <LineChart data={bodyMetricsChartData} margin={{ top: 10, right: 18, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2ebf4" />
-                <XAxis dataKey="date" tick={{ fill: '#58708a', fontSize: 11 }} />
-                <YAxis yAxisId="left" tick={{ fill: '#58708a', fontSize: 11 }} width={42} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fill: '#58708a', fontSize: 11 }} width={42} />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartTokens.grid} />
+                <XAxis dataKey="date" tick={{ fill: chartTokens.axis, fontSize: 11 }} />
+                <YAxis yAxisId="left" tick={{ fill: chartTokens.axis, fontSize: 11 }} width={42} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fill: chartTokens.axis, fontSize: 11 }} width={42} />
                 <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} />
                 <Legend />
-                <Line yAxisId="left" type="monotone" dataKey="weightKg" name="Weight (kg)" stroke="#1f6fd6" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                <Line yAxisId="left" type="monotone" dataKey="restingHr" name="Resting HR" stroke="#d97706" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                <Line yAxisId="right" type="monotone" dataKey="hrvMs" name="HRV (ms)" stroke="#2f8f57" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                <Line yAxisId="left" type="monotone" dataKey="weightKg" name="Weight (kg)" stroke={chartTokens.power} strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                <Line yAxisId="left" type="monotone" dataKey="restingHr" name="Resting HR" stroke={chartTokens.fatigue} strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                <Line yAxisId="right" type="monotone" dataKey="hrvMs" name="HRV (ms)" stroke={chartTokens.load} strokeWidth={2} dot={{ r: 3 }} connectNulls />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -741,9 +784,9 @@ export default function PerformanceCharts({
           </div>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={powerCurveData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e9eef5" />
-              <XAxis dataKey="duration" stroke="#60748a" tick={{ fill: '#60748a' }} />
-              <YAxis stroke="#60748a" tick={{ fill: '#60748a' }} />
+              <CartesianGrid strokeDasharray="3 3" stroke={chartTokens.grid} />
+              <XAxis dataKey="duration" stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} />
+              <YAxis stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} />
               <Tooltip
                 contentStyle={tooltipStyle}
                 labelStyle={tooltipLabelStyle}
@@ -751,7 +794,7 @@ export default function PerformanceCharts({
                 formatter={(value, name) => [`${Math.round(Number(value ?? 0))} W`, String(name)]}
                 labelFormatter={(label) => `Duration: ${String(label ?? '')}`}
               />
-              <Bar dataKey="power" fill="#1f6fd6" name="Peak Power (W)" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="power" fill={chartTokens.power} name="Peak Power (W)" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -767,9 +810,9 @@ export default function PerformanceCharts({
             </div>
             <ResponsiveContainer width="100%" height={300}>
               <AreaChart data={hrTrendData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e9eef5" />
-                <XAxis dataKey="day" stroke="#60748a" tick={{ fill: '#60748a' }} />
-                <YAxis stroke="#60748a" tick={{ fill: '#60748a' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartTokens.grid} />
+                <XAxis dataKey="day" stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} />
+                <YAxis stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} />
                 <Tooltip
                   contentStyle={tooltipStyle}
                   labelStyle={tooltipLabelStyle}
@@ -778,8 +821,8 @@ export default function PerformanceCharts({
                   labelFormatter={(label) => `Ride #${String(label ?? '')}`}
                 />
                 <Legend />
-                <Area type="monotone" dataKey="avgHR" fill="#ff8f1f" stroke="#ea7c0a" name="Avg HR" />
-                <Area type="monotone" dataKey="zone3" fill="#1f6fd6" stroke="#1f6fd6" name="Zone 3" opacity={0.25} />
+                <Area type="monotone" dataKey="avgHR" fill={chartTokens.fatigue} stroke={chartTokens.fatigue} name="Avg HR" />
+                <Area type="monotone" dataKey="zone3" fill={chartTokens.power} stroke={chartTokens.power} name="Zone 3" opacity={0.25} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -796,10 +839,10 @@ export default function PerformanceCharts({
             </div>
             <ResponsiveContainer width="100%" height={300}>
               <ComposedChart data={pmcChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e9eef5" />
-                <XAxis dataKey="date" stroke="#60748a" tick={{ fill: '#60748a' }} tickFormatter={(value) => String(value).slice(5)} />
-                <YAxis yAxisId="left" stroke="#60748a" tick={{ fill: '#60748a' }} />
-                <YAxis yAxisId="right" orientation="right" stroke="#60748a" tick={{ fill: '#60748a' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartTokens.grid} />
+                <XAxis dataKey="date" stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} tickFormatter={(value) => String(value).slice(5)} />
+                <YAxis yAxisId="left" stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} />
+                <YAxis yAxisId="right" orientation="right" stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} />
                 <Tooltip
                   contentStyle={tooltipStyle}
                   labelStyle={tooltipLabelStyle}
@@ -814,11 +857,11 @@ export default function PerformanceCharts({
                   }}
                 />
                 <Legend />
-                <Bar yAxisId="right" dataKey="plannedStress" fill="#d4e4f7" name="Planned Stress" radius={[4, 4, 0, 0]} />
-                <Bar yAxisId="right" dataKey="completedStress" fill="#8cb5e7" name="Completed Stress" radius={[4, 4, 0, 0]} />
-                <Line yAxisId="left" dataKey="ctl" type="monotone" stroke="#1f6fd6" strokeWidth={2.4} dot={false} name="CTL" />
-                <Line yAxisId="left" dataKey="atl" type="monotone" stroke="#ea7c0a" strokeWidth={2.2} dot={false} name="ATL" />
-                <Area yAxisId="left" dataKey="tsb" type="monotone" fill="#97c4ff" stroke="#5f9be7" fillOpacity={0.2} name="TSB" />
+                <Bar yAxisId="right" dataKey="plannedStress" fill={chartTokens.planned} name="Planned Stress" radius={[4, 4, 0, 0]} />
+                <Bar yAxisId="right" dataKey="completedStress" fill={chartTokens.completed} name="Completed Stress" radius={[4, 4, 0, 0]} />
+                <Line yAxisId="left" dataKey="ctl" type="monotone" stroke={chartTokens.load} strokeWidth={2.4} dot={false} name="CTL" />
+                <Line yAxisId="left" dataKey="atl" type="monotone" stroke={chartTokens.fatigue} strokeWidth={2.2} dot={false} name="ATL" />
+                <Area yAxisId="left" dataKey="tsb" type="monotone" fill={chartTokens.power} stroke={chartTokens.power} fillOpacity={0.2} name="TSB" />
                 {(plannedEvents || []).filter((e) => e.name && e.date).map((event) => (
                   <ReferenceLine
                     key={`event-ref-${event.id}`}
@@ -880,9 +923,9 @@ export default function PerformanceCharts({
 
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={thresholdHistory}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e9eef5" />
-                <XAxis dataKey="versionLabel" stroke="#60748a" tick={{ fill: '#60748a' }} />
-                <YAxis stroke="#60748a" tick={{ fill: '#60748a' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartTokens.grid} />
+                <XAxis dataKey="versionLabel" stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} />
+                <YAxis stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} />
                 <Tooltip
                   contentStyle={tooltipStyle}
                   labelStyle={tooltipLabelStyle}
@@ -891,7 +934,7 @@ export default function PerformanceCharts({
                   labelFormatter={(label) => `Zone Version ${String(label ?? '')}`}
                 />
                 <Legend />
-                <Line type="monotone" dataKey="ftp" stroke="#1f6fd6" strokeWidth={2.4} dot={{ r: 3 }} name="FTP" />
+                <Line type="monotone" dataKey="ftp" stroke={chartTokens.power} strokeWidth={2.4} dot={{ r: 3 }} name="FTP" />
               </LineChart>
             </ResponsiveContainer>
 
@@ -933,9 +976,9 @@ export default function PerformanceCharts({
             </div>
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={pmcChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e9eef5" />
-                <XAxis dataKey="date" stroke="#60748a" tick={{ fill: '#60748a' }} tickFormatter={(value) => String(value).slice(5)} />
-                <YAxis stroke="#60748a" tick={{ fill: '#60748a' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartTokens.grid} />
+                <XAxis dataKey="date" stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} tickFormatter={(value) => String(value).slice(5)} />
+                <YAxis stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} />
                 <Tooltip
                   contentStyle={tooltipStyle}
                   labelStyle={tooltipLabelStyle}
@@ -943,8 +986,8 @@ export default function PerformanceCharts({
                   formatter={(value, name) => [`${Number(value ?? 0).toFixed(1)}`, String(name)]}
                 />
                 <Legend />
-                <Area type="monotone" dataKey="ctl" fill="#b8d5f5" stroke="#1f6fd6" fillOpacity={0.35} strokeWidth={2.2} name="CTL (Fitness)" />
-                <Area type="monotone" dataKey="atl" fill="#ffd5a8" stroke="#ea7c0a" fillOpacity={0.2} strokeWidth={1.8} name="ATL (Fatigue)" />
+                <Area type="monotone" dataKey="ctl" fill={chartTokens.load} stroke={chartTokens.load} fillOpacity={0.35} strokeWidth={2.2} name="CTL (Fitness)" />
+                <Area type="monotone" dataKey="atl" fill={chartTokens.fatigue} stroke={chartTokens.fatigue} fillOpacity={0.2} strokeWidth={1.8} name="ATL (Fatigue)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -1010,10 +1053,10 @@ export default function PerformanceCharts({
           </div>
           <ResponsiveContainer width="100%" height={300}>
             <ComposedChart data={volumeData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e9eef5" />
-              <XAxis dataKey="date" stroke="#60748a" tick={{ fill: '#60748a' }} />
-              <YAxis yAxisId="left" stroke="#60748a" tick={{ fill: '#60748a' }} />
-              <YAxis yAxisId="right" orientation="right" stroke="#60748a" tick={{ fill: '#60748a' }} />
+              <CartesianGrid strokeDasharray="3 3" stroke={chartTokens.grid} />
+              <XAxis dataKey="date" stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} />
+              <YAxis yAxisId="left" stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} />
+              <YAxis yAxisId="right" orientation="right" stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} />
               <Tooltip
                 contentStyle={tooltipStyle}
                 labelStyle={tooltipLabelStyle}
@@ -1022,11 +1065,45 @@ export default function PerformanceCharts({
                 labelFormatter={(label) => `Plan ${String(label ?? '')}`}
               />
               <Legend />
-              <Bar yAxisId="left" dataKey="volume" fill="#1f6fd6" name="Hours" radius={[6, 6, 0, 0]} />
-              <Line yAxisId="right" type="monotone" dataKey="intensity" stroke="#ea7c0a" name="Intensity" strokeWidth={2.5} dot={false} />
+              <Bar yAxisId="left" dataKey="volume" fill={chartTokens.power} name="Hours" radius={[6, 6, 0, 0]} />
+              <Line yAxisId="right" type="monotone" dataKey="intensity" stroke={chartTokens.fatigue} name="Intensity" strokeWidth={2.5} dot={false} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
+
+        {featuredWorkoutSessions.length > 0 && (
+          <div className={`${styles.chartCard} ${styles.workoutProfilesCard}`}>
+            <div className={styles.chartTitleRow}>
+              <div>
+                <h3>{translateText('Key Workout Profiles')}</h3>
+                <p className={styles.chartSubtitle}>Time-weighted intensity blocks from the active plan.</p>
+              </div>
+              <div className={styles.chartTitleActions}>
+                <span className={styles.helpIcon} tabIndex={0} data-tooltip="The same interval profile used in Session Details. Block width is duration; height and color represent intensity and zone.">?</span>
+                <span className={styles.sourcePillPlanned}>Plan Data</span>
+              </div>
+            </div>
+            <div className={styles.workoutProfilesGrid}>
+              {featuredWorkoutSessions.map(({ session, steps }) => (
+                <article key={session.id} className={styles.workoutProfileCard}>
+                  <div className={styles.workoutProfileHeader}>
+                    <div>
+                      <strong>{getSessionLabel(session)}</strong>
+                      <span>{formatSessionDate(session)} · {session.duration} min</span>
+                    </div>
+                    <span className={styles.workoutProfileType}>{session.type}</span>
+                  </div>
+                  <WorkoutProfileChart
+                    steps={steps}
+                    hasPowerMeter={hasPowerMeter}
+                    compact
+                    title={`${getSessionLabel(session)} profile`}
+                  />
+                </article>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className={styles.chartCard}>
           <div className={styles.chartTitleRow}>
@@ -1039,9 +1116,9 @@ export default function PerformanceCharts({
 
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={intensityDistribution.zones}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e9eef5" />
-              <XAxis dataKey="label" stroke="#60748a" tick={{ fill: '#60748a', fontSize: 11 }} interval={0} />
-              <YAxis stroke="#60748a" tick={{ fill: '#60748a' }} />
+              <CartesianGrid strokeDasharray="3 3" stroke={chartTokens.grid} />
+              <XAxis dataKey="label" stroke={chartTokens.axis} tick={{ fill: chartTokens.axis, fontSize: 11 }} interval={0} />
+              <YAxis stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} />
               <Tooltip
                 contentStyle={tooltipStyle}
                 labelStyle={tooltipLabelStyle}
@@ -1054,8 +1131,8 @@ export default function PerformanceCharts({
                 }}
               />
               <Legend />
-              <Bar dataKey="plannedMinutes" fill="#b8cce5" name="Planned Minutes" radius={[5, 5, 0, 0]} />
-              <Bar dataKey="completedMinutes" fill="#1f6fd6" name="Completed Minutes" radius={[5, 5, 0, 0]} />
+              <Bar dataKey="plannedMinutes" fill={chartTokens.planned} name="Planned Minutes" radius={[5, 5, 0, 0]} />
+              <Bar dataKey="completedMinutes" fill={chartTokens.completed} name="Completed Minutes" radius={[5, 5, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
 
@@ -1214,9 +1291,9 @@ export default function PerformanceCharts({
           <div className={styles.executionTrendCard}>
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={sessionExecutionSummary.trendRows}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e9eef5" />
-                <XAxis dataKey="date" stroke="#60748a" tick={{ fill: '#60748a' }} />
-                <YAxis stroke="#60748a" tick={{ fill: '#60748a' }} domain={[0, 100]} />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartTokens.grid} />
+                <XAxis dataKey="date" stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} />
+                <YAxis stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} domain={[0, 100]} />
                 <Tooltip
                   contentStyle={tooltipStyle}
                   labelStyle={tooltipLabelStyle}
@@ -1230,9 +1307,9 @@ export default function PerformanceCharts({
                   }}
                 />
                 <Legend />
-                <Line type="monotone" dataKey="executionScore" stroke="#1f6fd6" strokeWidth={2.2} dot={false} name="Execution Score" />
-                <Line type="monotone" dataKey="plannedStress" stroke="#99b7dd" strokeWidth={1.6} dot={false} name="Planned Stress" />
-                <Line type="monotone" dataKey="completedStress" stroke="#ea7c0a" strokeWidth={1.8} dot={false} name="Completed Stress" />
+                <Line type="monotone" dataKey="executionScore" stroke={chartTokens.power} strokeWidth={2.2} dot={false} name="Execution Score" />
+                <Line type="monotone" dataKey="plannedStress" stroke={chartTokens.planned} strokeWidth={1.6} dot={false} name="Planned Stress" />
+                <Line type="monotone" dataKey="completedStress" stroke={chartTokens.fatigue} strokeWidth={1.8} dot={false} name="Completed Stress" />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -1247,10 +1324,10 @@ export default function PerformanceCharts({
             </div>
             <ResponsiveContainer width="100%" height={280}>
               <ComposedChart data={weeklyStressTimeline}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e9eef5" />
-                <XAxis dataKey="label" stroke="#60748a" tick={{ fill: '#60748a' }} />
-                <YAxis yAxisId="left" stroke="#60748a" tick={{ fill: '#60748a' }} />
-                <YAxis yAxisId="right" orientation="right" stroke="#60748a" tick={{ fill: '#60748a' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartTokens.grid} />
+                <XAxis dataKey="label" stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} />
+                <YAxis yAxisId="left" stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} />
+                <YAxis yAxisId="right" orientation="right" stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} />
                 <Tooltip
                   contentStyle={tooltipStyle}
                   labelStyle={tooltipLabelStyle}
@@ -1264,9 +1341,9 @@ export default function PerformanceCharts({
                   }}
                 />
                 <Legend />
-                <Bar yAxisId="left" dataKey="plannedStress" fill="#c4d8ef" name="Planned Stress" radius={[4, 4, 0, 0]} />
-                <Bar yAxisId="left" dataKey="completedStress" fill="#1f6fd6" name="Completed Stress" radius={[4, 4, 0, 0]} />
-                <Line yAxisId="right" dataKey="completionPct" type="monotone" stroke="#ea7c0a" strokeWidth={2.2} dot={false} name="Completion %" />
+                <Bar yAxisId="left" dataKey="plannedStress" fill={chartTokens.planned} name="Planned Stress" radius={[4, 4, 0, 0]} />
+                <Bar yAxisId="left" dataKey="completedStress" fill={chartTokens.completed} name="Completed Stress" radius={[4, 4, 0, 0]} />
+                <Line yAxisId="right" dataKey="completionPct" type="monotone" stroke={chartTokens.fatigue} strokeWidth={2.2} dot={false} name="Completion %" />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -1311,10 +1388,10 @@ export default function PerformanceCharts({
           <div className={styles.seasonChart}>
             <ResponsiveContainer width="100%" height={200}>
               <ComposedChart data={seasonPhaseOverview}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e9eef5" />
-                <XAxis dataKey="weekLabel" stroke="#60748a" tick={{ fill: '#60748a', fontSize: 10 }} interval={Math.max(0, Math.floor(seasonPhaseOverview.length / 12) - 1)} />
-                <YAxis yAxisId="left" stroke="#60748a" tick={{ fill: '#60748a' }} />
-                <YAxis yAxisId="right" orientation="right" stroke="#60748a" tick={{ fill: '#60748a' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartTokens.grid} />
+                <XAxis dataKey="weekLabel" stroke={chartTokens.axis} tick={{ fill: chartTokens.axis, fontSize: 10 }} interval={Math.max(0, Math.floor(seasonPhaseOverview.length / 12) - 1)} />
+                <YAxis yAxisId="left" stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} />
+                <YAxis yAxisId="right" orientation="right" stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} />
                 <Tooltip
                   contentStyle={tooltipStyle}
                   labelStyle={tooltipLabelStyle}
@@ -1327,10 +1404,10 @@ export default function PerformanceCharts({
                 />
                 <Legend />
                 <Bar yAxisId="left" dataKey="totalHours" name="Hours" radius={[3, 3, 0, 0]}
-                  fill="#1f6fd6"
+                  fill={chartTokens.power}
                   label={false}
                 />
-                <Line yAxisId="right" type="monotone" dataKey="intensityScore" stroke="#ea7c0a" strokeWidth={1.8} dot={false} name="Intensity" />
+                <Line yAxisId="right" type="monotone" dataKey="intensityScore" stroke={chartTokens.fatigue} strokeWidth={1.8} dot={false} name="Intensity" />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -1394,9 +1471,9 @@ export default function PerformanceCharts({
             <div className={styles.rampChart}>
               <ResponsiveContainer width="100%" height={180}>
                 <ComposedChart data={rampTimeline}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e9eef5" />
-                  <XAxis dataKey="label" stroke="#60748a" tick={{ fill: '#60748a' }} />
-                  <YAxis stroke="#60748a" tick={{ fill: '#60748a' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartTokens.grid} />
+                  <XAxis dataKey="label" stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} />
+                  <YAxis stroke={chartTokens.axis} tick={{ fill: chartTokens.axis }} />
                   <Tooltip
                     contentStyle={tooltipStyle}
                     labelStyle={tooltipLabelStyle}
@@ -1404,8 +1481,8 @@ export default function PerformanceCharts({
                     formatter={(value, name) => [`${Number(value ?? 0).toFixed(1)} pts`, String(name)]}
                   />
                   <Legend />
-                  <Bar dataKey="weeklyLoad" fill="#1f6fd6" name="Weekly Load" radius={[4, 4, 0, 0]} />
-                  <Line dataKey="ramp" type="monotone" stroke="#ea7c0a" strokeWidth={2} dot={false} name="Ramp" />
+                  <Bar dataKey="weeklyLoad" fill={chartTokens.power} name="Weekly Load" radius={[4, 4, 0, 0]} />
+                  <Line dataKey="ramp" type="monotone" stroke={chartTokens.fatigue} strokeWidth={2} dot={false} name="Ramp" />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>

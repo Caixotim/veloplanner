@@ -4,7 +4,9 @@ import { useState } from 'react'
 import clsx from 'clsx'
 import type { Equipment, TrainingSession, UserZoneProfile } from '@/app/lib/types'
 import { getTemplatesForType } from '@/app/lib/workoutTemplates'
+import { parseWorkoutProfileSteps, type WorkoutProfileStep } from '@/app/lib/workoutProfile'
 import styles from './SessionEditorModal.module.scss'
+import WorkoutProfileChart from './WorkoutProfileChart'
 
 /**
  * Props for SessionEditorModal
@@ -38,13 +40,6 @@ const EQUIPMENT_ICONS: Record<Equipment, string> = {
 
 type EnduranceMode = 'outdoor' | 'indoor_trainer' | 'rowing_machine'
 
-type WorkoutStepDraft = {
-  id: string
-  minutes: number
-  target: string
-  note: string
-}
-
 const ENDURANCE_MODE_LABELS: Record<EnduranceMode, string> = {
   outdoor: '🛣️ Outdoor',
   indoor_trainer: '🏋️ Trainer',
@@ -72,7 +67,7 @@ export default function SessionEditorModal({
   const [edited, setEdited] = useState<TrainingSession>({ ...session })
   const [showDiff, setShowDiff] = useState(false)
   const [useEquipmentOverride, setUseEquipmentOverride] = useState(false)
-  const [workoutSteps, setWorkoutSteps] = useState<WorkoutStepDraft[]>(() => parseStructuredWorkout(session.structuredWorkout))
+  const [workoutSteps, setWorkoutSteps] = useState<WorkoutProfileStep[]>(() => parseWorkoutProfileSteps(session.structuredWorkout))
   const [selectedZoneVersionLabel, setSelectedZoneVersionLabel] = useState<string>(session.zoneVersionLabel || '')
   const [draggedStepIndex, setDraggedStepIndex] = useState<number | null>(null)
   const [showTemplatePicker, setShowTemplatePicker] = useState(false)
@@ -85,6 +80,7 @@ export default function SessionEditorModal({
   const usesRower = edited.equipment.includes('rowing_machine')
   const usesTrainer = edited.equipment.includes('indoor_trainer')
   const currentEnduranceMode: EnduranceMode = usesRower ? 'rowing_machine' : usesTrainer ? 'indoor_trainer' : 'outdoor'
+  const sessionProfileSteps = parseWorkoutProfileSteps(session.structuredWorkout, { fallback: false })
 
   /**
    * Handle field changes
@@ -181,7 +177,7 @@ export default function SessionEditorModal({
   const changes = getChanges()
   const hasChanges = Object.keys(changes).length > 0
 
-  const updateWorkoutStep = (index: number, next: Partial<WorkoutStepDraft>) => {
+  const updateWorkoutStep = (index: number, next: Partial<WorkoutProfileStep>) => {
     setWorkoutSteps((prev) => {
       const updated = [...prev]
       updated[index] = { ...updated[index], ...next }
@@ -302,44 +298,19 @@ export default function SessionEditorModal({
               <p className={styles.descriptionText}>{getReadableSessionDescription(session.description)}</p>
             </div>
 
-            {session.structuredWorkout && session.structuredWorkout.length > 0 && (
+            {sessionProfileSteps.length > 0 && (
               <div className={styles.infoPanel}>
                 <strong>Structured Workout</strong>
                 <ul className={styles.detailList}>
-                  {getReadableWorkoutSteps(session.structuredWorkout).map((step, index) => (
+                  {getReadableWorkoutSteps(session.structuredWorkout || []).map((step, index) => (
                     <li key={`step-${index}`}>{step}</li>
                   ))}
                 </ul>
-                <div className={styles.workoutGraph} aria-label="Workout intensity graph">
-                  <div className={styles.workoutGraphHeader}>
-                    <strong>Workout structure</strong>
-                    <span>{hasPowerMeter ? 'Power zones · width = duration' : 'HR zones · width = duration'}</span>
-                  </div>
-                  <div className={styles.workoutGraphBars}>
-                    {parseStructuredWorkout(getReadableWorkoutSteps(session.structuredWorkout)).map((step, index) => (
-                      <div
-                        key={`graph-step-${step.id}`}
-                        className={styles.workoutGraphColumn}
-                        style={{ flexGrow: Math.max(1, step.minutes) }}
-                        title={`Block ${index + 1}: ${step.minutes} min · ${step.target}`}
-                      >
-                        <div
-                          className={styles.workoutGraphBar}
-                          style={{
-                            height: `${getWorkoutBarHeight(step.target)}%`,
-                            background: getWorkoutZoneColor(step.target, hasPowerMeter, zoneProfile),
-                          }}
-                          aria-label={`${getWorkoutZone(step.target, hasPowerMeter, zoneProfile)} · ${step.minutes} minutes`}
-                        />
-                        <span>{getWorkoutZone(step.target, hasPowerMeter, zoneProfile)}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className={styles.workoutGraphAxis}>
-                    <span>Z1 · recovery</span>
-                    <span>Z5 · hard</span>
-                  </div>
-                </div>
+                <WorkoutProfileChart
+                  steps={sessionProfileSteps}
+                  hasPowerMeter={hasPowerMeter}
+                  zoneProfile={zoneProfile}
+                />
               </div>
             )}
 
@@ -713,6 +684,13 @@ export default function SessionEditorModal({
                 </div>
               ))}
             </div>
+
+            <WorkoutProfileChart
+              steps={workoutSteps}
+              hasPowerMeter={hasPowerMeter}
+              zoneProfile={selectedZoneVersion ? zoneProfile : undefined}
+              title="Live workout preview"
+            />
           </div>
 
           {/* Pre-day nutrition tip */}
@@ -777,7 +755,7 @@ export default function SessionEditorModal({
               className={styles.btnReset}
               onClick={() => {
                 setEdited({ ...originalSession })
-                setWorkoutSteps(parseStructuredWorkout(originalSession.structuredWorkout))
+                setWorkoutSteps(parseWorkoutProfileSteps(originalSession.structuredWorkout))
                 setSelectedZoneVersionLabel(originalSession.zoneVersionLabel || '')
                 setUseEquipmentOverride(false)
               }}
@@ -797,85 +775,6 @@ export default function SessionEditorModal({
       </div>
     </div>
   )
-}
-
-function parseStructuredWorkout(lines?: string[]): WorkoutStepDraft[] {
-  const source = (lines || []).filter((line) => !line.toLowerCase().startsWith('workout level'))
-  const parsed = source
-    .map((line, index) => {
-      const durationMatch = line.match(/(\d+)\s*'/)
-      const minutes = durationMatch ? parseInt(durationMatch[1], 10) : 10
-      const [first, ...rest] = line.split(' at ')
-      const target = rest.length > 0 ? rest.join(' at ').trim() : ''
-      return {
-        id: `step_${index + 1}`,
-        minutes,
-        target: target || 'steady',
-        note: first.replace(/^[\d\sxX']+/, '').replace(/^[^A-Za-z0-9]+/, '').trim() || 'main set',
-      }
-    })
-    .filter((step) => step.minutes > 0)
-
-  if (parsed.length > 0) {
-    return parsed
-  }
-
-  return [
-    {
-      id: 'step_1',
-      minutes: 10,
-      target: 'easy',
-      note: 'warm-up',
-    },
-    {
-      id: 'step_2',
-      minutes: 20,
-      target: 'steady',
-      note: 'main set',
-    },
-  ]
-}
-
-function getWorkoutBarHeight(target: string): number {
-  const match = target.match(/(\d+(?:\.\d+)?)/)
-  const value = match ? Number(match[1]) : 60
-  return Math.max(24, Math.min(100, ((value - 50) / 70) * 76 + 24))
-}
-
-function getWorkoutZone(target: string, hasPowerMeter: boolean, zoneProfile?: UserZoneProfile): string {
-  const percentages = [...target.matchAll(/(\d+(?:\.\d+)?)\s*%/g)].map((match) => Number(match[1]))
-  const percentage = percentages.length > 0 ? percentages.reduce((sum, value) => sum + value, 0) / percentages.length : null
-
-  if (percentage === null) {
-    return 'Z2'
-  }
-
-  if (zoneProfile?.zones?.length) {
-    const zoneIndex = zoneProfile.zones.findIndex((zone) => percentage >= zone.minPct * 100 && percentage <= zone.maxPct * 100)
-    if (zoneIndex >= 0) {
-      return `Z${zoneIndex + 1}`
-    }
-  }
-
-  if (hasPowerMeter) {
-    if (percentage <= 55) return 'Z1'
-    if (percentage <= 75) return 'Z2'
-    if (percentage <= 90) return 'Z3'
-    if (percentage <= 105) return 'Z4'
-    return 'Z5'
-  }
-
-  if (percentage <= 68) return 'Z1'
-  if (percentage <= 83) return 'Z2'
-  if (percentage <= 94) return 'Z3'
-  if (percentage <= 105) return 'Z4'
-  return 'Z5'
-}
-
-function getWorkoutZoneColor(target: string, hasPowerMeter: boolean, zoneProfile?: UserZoneProfile): string {
-  const zoneLabel = getWorkoutZone(target, hasPowerMeter, zoneProfile)
-  const zoneIndex = Number(zoneLabel.replace('Z', '')) - 1
-  return zoneProfile?.zones[zoneIndex]?.color || ['#b0d4f1', '#83c5e5', '#f5a623', '#e07b39', '#d94f3d', '#9b2335'][zoneIndex] || '#39ffb6'
 }
 
 function getReadableSessionDescription(description: string): string {
@@ -939,7 +838,7 @@ function getReadableWorkoutSteps(lines: string[]): string[] {
   return uniqueSteps.slice(0, 8)
 }
 
-function serializeStructuredWorkout(steps: WorkoutStepDraft[]): string[] {
+function serializeStructuredWorkout(steps: WorkoutProfileStep[]): string[] {
   return steps
     .filter((step) => step.minutes > 0)
     .map((step) => `${step.note || 'block'} ${step.minutes}' at ${step.target || 'steady'}`)

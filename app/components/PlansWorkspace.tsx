@@ -2525,6 +2525,7 @@ export default function PlansWorkspace() {
             />
             <PerformanceCharts
               plan={currentPlan}
+              hasPowerMeter={Boolean(userProfile?.hasPowerMeter)}
               ftpTargetOverride={effectiveFtpTarget}
               intervalsRideData={intervalsRideData}
               bodyMetrics={bodyMetrics}
