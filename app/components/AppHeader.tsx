@@ -11,8 +11,12 @@ import { useState } from 'react'
 export function AppHeader() {
   const { t } = useLocale()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
-  const closeMenu = () => setMenuOpen(false)
+  const closeMenus = () => {
+    setMenuOpen(false)
+    setSettingsOpen(false)
+  }
 
   return (
     <header className="header">
@@ -21,23 +25,31 @@ export function AppHeader() {
           <BikeIcon size={20} className="logoIcon" />
           VeloPlanner
         </div>
-        <Link href="/settings" className="mobileSettingsLink" aria-label="Open settings">
-          <span aria-hidden="true">⚙</span>
-        </Link>
+        <SettingsMenu
+          className="mobileSettingsMenu"
+          isOpen={settingsOpen}
+          onOpenChange={(open) => {
+            setSettingsOpen(open)
+            if (open) setMenuOpen(false)
+          }}
+        />
         <button
           type="button"
           className="mobileMenuToggle"
           aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
           aria-expanded={menuOpen}
           aria-controls="global-navigation"
-          onClick={() => setMenuOpen((open) => !open)}
+          onClick={() => {
+            setSettingsOpen(false)
+            setMenuOpen((open) => !open)
+          }}
         >
           <span aria-hidden="true">{menuOpen ? '×' : '☰'}</span>
         </button>
         <nav id="global-navigation" className={`nav${menuOpen ? ' navOpen' : ''}`}>
-          <Link href="/coach" className="navButton" onClick={closeMenu}><HomeIcon size={16} className="navIcon" />{t('home')}</Link>
-          <Link href="/integrations" className="navButton" onClick={closeMenu}><PlugIcon size={16} className="navIcon" />{t('connectData')}</Link>
-          <Link href="/profile" className="navButton mobileOptionalNav" onClick={closeMenu}><UserIcon size={16} className="navIcon" />{t('athlete')}</Link>
+          <Link href="/coach" className="navButton" onClick={closeMenus}><HomeIcon size={16} className="navIcon" />{t('home')}</Link>
+          <Link href="/integrations" className="navButton" onClick={closeMenus}><PlugIcon size={16} className="navIcon" />{t('connectData')}</Link>
+          <Link href="/profile" className="navButton mobileOptionalNav" onClick={closeMenus}><UserIcon size={16} className="navIcon" />{t('athlete')}</Link>
           <div className="mobileOptionalNav"><LocaleSwitcher /></div>
           <div className="desktopSettings"><SettingsMenu /></div>
           <AuthStatus />

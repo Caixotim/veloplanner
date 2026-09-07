@@ -66,13 +66,70 @@
   text-transform: uppercase;
 }
 
+.menuControl {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--theme-border);
+}
+
+.menuLabel {
+  color: var(--theme-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .themeSelectorWrapper {
   width: 100%;
+}
+
+.profileLink {
+  display: inline-flex;
+  margin-top: 0.65rem;
+  color: var(--theme-accent);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.profileLink:hover,
+.profileLink:focus-visible {
+  text-decoration: underline;
 }
 
 @media (max-width: 900px) {
   .settingsMenu {
     width: 100%;
+  }
+
+  :global(.mobileSettingsMenu) {
+    width: auto;
+  }
+
+  :global(.mobileSettingsMenu) .settingsButton {
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0;
+    justify-content: center;
+    gap: 0;
+  }
+
+  :global(.mobileSettingsMenu) .menuPanel {
+    position: fixed;
+    top: calc(0.55rem + env(safe-area-inset-top, 0px) + 2.75rem + 0.55rem);
+    right: 0.75rem;
+    left: 0.75rem;
+    width: auto;
+    min-width: 0;
+    margin-top: 0;
+    border-radius: 0 0 0.9rem 0.9rem;
+    padding: 0.85rem;
+    box-shadow: 0 12px 24px var(--theme-card-shadow-strong);
+  }
+
+  .menuControl {
+    padding: 0.65rem 0;
   }
 
   .settingsButton {

@@ -2,17 +2,32 @@
 
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
+import Link from 'next/link'
 import { ThemeSelector } from './ThemeSelector'
+import { LocaleSwitcher } from './LocaleSwitcher'
+import { useLocale } from '../lib/i18n'
 import styles from './SettingsMenu.module.scss'
 
 interface SettingsMenuProps {
   className?: string
+  isOpen?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
-export function SettingsMenu({ className }: SettingsMenuProps) {
-  const [isOpen, setIsOpen] = useState(false)
+export function SettingsMenu({ className, isOpen: controlledOpen, onOpenChange }: SettingsMenuProps) {
+  const { isPortuguese, t } = useLocale()
+  const [internalOpen, setInternalOpen] = useState(false)
+  const isControlled = controlledOpen !== undefined
+  const isOpen = controlledOpen ?? internalOpen
   const rootRef = useRef<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
+
+  const setIsOpen = (open: boolean) => {
+    if (!isControlled) {
+      setInternalOpen(open)
+    }
+    onOpenChange?.(open)
+  }
 
   useEffect(() => {
     if (!isOpen) {
@@ -41,9 +56,7 @@ export function SettingsMenu({ className }: SettingsMenuProps) {
     }
   }, [isOpen])
 
-  const toggleMenu = () => {
-    setIsOpen((prev) => !prev)
-  }
+  const toggleMenu = () => setIsOpen(!isOpen)
 
   return (
     <div className={clsx(styles.settingsMenu, className)} ref={rootRef}>
@@ -73,8 +86,18 @@ export function SettingsMenu({ className }: SettingsMenuProps) {
 
       {isOpen && (
         <div className={styles.menuPanel}>
-          <div className={styles.menuTitle}>Settings</div>
-          <ThemeSelector className={styles.themeSelectorWrapper} />
+          <div className={styles.menuTitle}>{isPortuguese ? 'Definições' : 'Settings'}</div>
+          <div className={styles.menuControl}>
+            <div className={styles.menuLabel}>{t('language')}</div>
+            <LocaleSwitcher />
+          </div>
+          <div className={styles.menuControl}>
+            <div className={styles.menuLabel}>{isPortuguese ? 'Tema' : 'Theme'}</div>
+            <ThemeSelector className={styles.themeSelectorWrapper} />
+          </div>
+          <Link href="/profile" className={styles.profileLink} onClick={() => setIsOpen(false)}>
+            {isPortuguese ? 'Abrir perfil do atleta' : 'Open athlete profile'}
+          </Link>
         </div>
       )}
     </div>

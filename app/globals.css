@@ -206,6 +206,10 @@ body {
   display: none;
 }
 
+.mobileSettingsMenu {
+  display: none;
+}
+
 .logo {
   display: inline-flex;
   align-items: center;
@@ -232,7 +236,7 @@ body {
 
 @media (max-width: 900px) {
   .header {
-    position: fixed;
+    position: sticky;
     top: 0;
     width: 100%;
     padding: calc(0.55rem + env(safe-area-inset-top, 0px)) 0 0.55rem;
@@ -247,23 +251,13 @@ body {
     padding: 0 0.75rem;
   }
 
-  .mobileSettingsLink {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2.75rem;
-    height: 2.75rem;
+  .mobileSettingsMenu {
+    display: block;
+    width: auto;
     margin-left: auto;
-    border: 1px solid var(--theme-nav-pill-border);
-    border-radius: 0.65rem;
-    background: var(--theme-nav-pill-bg);
-    color: var(--theme-header-text);
-    font-size: 1.4rem;
-    line-height: 1;
-    text-decoration: none;
   }
 
-  .mobileSettingsLink + .mobileMenuToggle {
+  .mobileSettingsMenu + .mobileMenuToggle {
     margin-left: -0.5rem;
   }
 
@@ -339,7 +333,7 @@ body {
   }
 
   main {
-    padding-top: calc(4.5rem + env(safe-area-inset-top, 0px));
+    padding-top: 1rem;
     padding-bottom: 1rem;
   }
 
