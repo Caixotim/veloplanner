@@ -18,6 +18,10 @@ export function AppHeader() {
     setSettingsOpen(false)
   }
 
+  const closeMenusAfterNavigation = () => {
+    window.setTimeout(closeMenus, 0)
+  }
+
   return (
     <header className="header">
       <div className="container">
@@ -47,9 +51,9 @@ export function AppHeader() {
           <span aria-hidden="true">{menuOpen ? '×' : '☰'}</span>
         </button>
         <nav id="global-navigation" className={`nav${menuOpen ? ' navOpen' : ''}`}>
-          <Link href="/coach" className="navButton" onClick={closeMenus}><HomeIcon size={16} className="navIcon" />{t('home')}</Link>
-          <Link href="/integrations" className="navButton" onClick={closeMenus}><PlugIcon size={16} className="navIcon" />{t('connectData')}</Link>
-          <Link href="/profile" className="navButton mobileOptionalNav" onClick={closeMenus}><UserIcon size={16} className="navIcon" />{t('athlete')}</Link>
+          <Link href="/coach" className="navButton" onClick={closeMenusAfterNavigation}><HomeIcon size={16} className="navIcon" />{t('home')}</Link>
+          <Link href="/integrations" className="navButton" onClick={closeMenusAfterNavigation}><PlugIcon size={16} className="navIcon" />{t('connectData')}</Link>
+          <Link href="/profile" className="navButton mobileOptionalNav" onClick={closeMenusAfterNavigation}><UserIcon size={16} className="navIcon" />{t('athlete')}</Link>
           <div className="mobileOptionalNav"><LocaleSwitcher /></div>
           <div className="desktopSettings"><SettingsMenu /></div>
           <AuthStatus />

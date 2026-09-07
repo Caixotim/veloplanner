@@ -95,7 +95,7 @@ export function SettingsMenu({ className, isOpen: controlledOpen, onOpenChange }
             <div className={styles.menuLabel}>{isPortuguese ? 'Tema' : 'Theme'}</div>
             <ThemeSelector className={styles.themeSelectorWrapper} />
           </div>
-          <Link href="/profile" className={styles.profileLink} onClick={() => setIsOpen(false)}>
+          <Link href="/profile" className={styles.profileLink} onClick={() => window.setTimeout(() => setIsOpen(false), 0)}>
             {isPortuguese ? 'Abrir perfil do atleta' : 'Open athlete profile'}
           </Link>
         </div>
