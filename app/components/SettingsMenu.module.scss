@@ -70,9 +70,25 @@
   width: 100%;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
+  .settingsMenu {
+    width: 100%;
+  }
+
+  .settingsButton {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    padding: 0 0.75rem;
+  }
+
   .menuPanel {
-    min-width: 280px;
-    right: -0.5rem;
+    position: static;
+    min-width: 0;
+    width: 100%;
+    margin-top: 0.35rem;
+    padding: 0.85rem;
+    border-radius: 0.7rem;
+    box-shadow: none;
   }
 }

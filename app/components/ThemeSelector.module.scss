@@ -162,8 +162,18 @@
   height: 0.82rem;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 900px) {
   .themeSelector {
     width: 100%;
+  }
+
+  .menuContainer {
+    position: static;
+    margin-top: 0.4rem;
+    transform: none;
+  }
+
+  .menuOpen {
+    transform: none;
   }
 }
