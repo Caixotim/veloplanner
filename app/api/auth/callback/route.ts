@@ -14,7 +14,7 @@ export async function GET(request: Request): Promise<Response> {
       return NextResponse.redirect(new URL('/?authError=oauth_exchange_failed', request.url))
     }
 
-    return NextResponse.redirect(new URL('/', request.url))
+    return NextResponse.redirect(new URL('/coach', request.url))
   } catch {
     return NextResponse.redirect(new URL('/?authError=auth_not_configured', request.url))
   }

@@ -18,6 +18,7 @@ export function AppHeader() {
           VeloPlanner
         </div>
         <nav className="nav">
+          <Link href="/coach" className="navButton">{t('home')}</Link>
           <Link href="/integrations" className="navButton"><PlugIcon size={16} className="navIcon" />{t('connectData')}</Link>
           <Link href="/profile" className="navButton"><UserIcon size={16} className="navIcon" />{t('athlete')}</Link>
           <LocaleSwitcher />

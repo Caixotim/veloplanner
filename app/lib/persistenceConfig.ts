@@ -1,8 +1,10 @@
 export type PersistenceMode = 'local' | 'cloud'
 
-/** Cloud writes stay opt-in until Supabase is configured and migration is verified. */
+/** Authenticated deployments use Supabase persistence whenever its public config exists. */
 export function getPersistenceMode(): PersistenceMode {
-  return process.env.NEXT_PUBLIC_ENABLE_CLOUD_PERSISTENCE === 'true' ? 'cloud' : 'local'
+  const explicitlyEnabled = process.env.NEXT_PUBLIC_ENABLE_CLOUD_PERSISTENCE === 'true'
+  const supabaseConfigured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  return explicitlyEnabled || supabaseConfigured ? 'cloud' : 'local'
 }
 
 export function isCloudPersistenceEnabled(): boolean {

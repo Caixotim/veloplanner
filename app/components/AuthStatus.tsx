@@ -34,7 +34,7 @@ export function AuthStatus() {
   if (loading || !configured) return null
 
   if (!user) {
-    return <a className="navButton" href="/api/auth/google">Sign in</a>
+    return <a className="navButton" href="/login">Sign in</a>
   }
 
   const label = user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email ?? 'Account'

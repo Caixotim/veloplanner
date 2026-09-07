@@ -1,0 +1,48 @@
+.page {
+  min-height: 60vh;
+  display: grid;
+  place-items: center;
+  padding: 3rem 1rem;
+}
+
+.card {
+  width: min(100%, 30rem);
+  max-width: 30rem;
+  padding: 2rem;
+  border: 1px solid var(--theme-border);
+  border-radius: 1rem;
+  background: var(--theme-surface);
+  color: var(--theme-text-primary);
+  box-shadow: 0 12px 30px var(--theme-card-shadow);
+  text-align: center;
+}
+
+.card h1 {
+  margin: 0 0 0.75rem;
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+}
+
+.card p {
+  margin: 0 0 1.5rem;
+  color: var(--theme-text-secondary);
+  line-height: 1.6;
+}
+
+.googleButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 0.7rem;
+  background: var(--theme-accent);
+  color: var(--theme-bg-primary);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.googleButton:hover,
+.googleButton:focus-visible {
+  filter: brightness(1.08);
+}
