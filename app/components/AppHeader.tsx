@@ -6,9 +6,13 @@ import { SettingsMenu } from './SettingsMenu'
 import { LocaleSwitcher } from './LocaleSwitcher'
 import { useLocale } from '../lib/i18n'
 import { AuthStatus } from './AuthStatus'
+import { useState } from 'react'
 
 export function AppHeader() {
   const { t } = useLocale()
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  const closeMenu = () => setMenuOpen(false)
 
   return (
     <header className="header">
@@ -17,18 +21,24 @@ export function AppHeader() {
           <BikeIcon size={20} className="logoIcon" />
           VeloPlanner
         </div>
-        <nav className="nav">
-          <Link href="/coach" className="navButton">{t('home')}</Link>
-          <Link href="/integrations" className="navButton"><PlugIcon size={16} className="navIcon" />{t('connectData')}</Link>
-          <Link href="/profile" className="navButton"><UserIcon size={16} className="navIcon" />{t('athlete')}</Link>
+        <button
+          type="button"
+          className="mobileMenuToggle"
+          aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+          aria-expanded={menuOpen}
+          aria-controls="global-navigation"
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          <span aria-hidden="true">{menuOpen ? '×' : '☰'}</span>
+        </button>
+        <nav id="global-navigation" className={`nav${menuOpen ? ' navOpen' : ''}`}>
+          <Link href="/coach" className="navButton" onClick={closeMenu}>{t('home')}</Link>
+          <Link href="/integrations" className="navButton" onClick={closeMenu}><PlugIcon size={16} className="navIcon" />{t('connectData')}</Link>
+          <Link href="/profile" className="navButton" onClick={closeMenu}><UserIcon size={16} className="navIcon" />{t('athlete')}</Link>
           <LocaleSwitcher />
           <SettingsMenu />
           <AuthStatus />
         </nav>
-        <Link href="/integrations" className="mobileIntegrationsQuickLink" aria-label={t('connectData')}>
-          <PlugIcon size={16} className="navIcon" />
-          {t('connectData')}
-        </Link>
       </div>
     </header>
   )
