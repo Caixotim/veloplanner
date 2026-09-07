@@ -58,6 +58,8 @@ describe('plan sync route behavior', () => {
   it('upserts a trainable session using a stable plan-scoped external ID', async () => {
     const fetchMock = jest.fn()
       .mockResolvedValueOnce(new TestResponse([], 200))
+      .mockResolvedValueOnce(new TestResponse({}, 200))
+      .mockResolvedValueOnce(new TestResponse([], 200))
       .mockResolvedValueOnce(new TestResponse({ id: 77 }, 200))
     global.fetch = fetchMock as typeof fetch
 
@@ -71,7 +73,7 @@ describe('plan sync route behavior', () => {
 
     const response = await POST(request)
     const body = await response.json()
-    const [, postOptions] = fetchMock.mock.calls[1] as [string, RequestInit]
+    const [, postOptions] = fetchMock.mock.calls[3] as [string, RequestInit]
     const payload = JSON.parse(String(postOptions.body)) as Record<string, unknown>
 
     expect(body).toMatchObject({ success: true, syncedEvents: 1, syncedEventIds: [77] })
@@ -105,6 +107,6 @@ describe('plan sync route behavior', () => {
       failedSessions: 1,
       failedSessionIds: ['session-route-test'],
     })
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 })

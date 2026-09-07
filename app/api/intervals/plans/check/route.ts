@@ -58,7 +58,8 @@ export async function POST(request: Request): Promise<Response> {
       )
     }
 
-    const config = (await getAuthenticatedIntervalsConfig()) ?? getIntervalsConfigFromRequest(request)
+    const requestConfig = getIntervalsConfigFromRequest(request)
+    const config = hasIntervalsConfig(requestConfig) ? requestConfig : (await getAuthenticatedIntervalsConfig() ?? requestConfig)
     if (!hasIntervalsConfig(config)) {
       return Response.json(
         {

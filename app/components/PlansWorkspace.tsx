@@ -26,7 +26,7 @@ import {
 } from '../lib/exportPlan'
 import { storage, type StoredPlan } from '../lib/storage'
 import { waitForAccountScope } from '../lib/accountScope'
-import { syncIntervalsDelta, isIntervalsSyncNeeded, getIntervalsTrainingInsights, fetchIntervalsBlockedDates, fetchPlansFromIntervals } from '../lib/intervalsIntegration'
+import { syncIntervalsDelta, getIntervalsTrainingInsights, fetchIntervalsBlockedDates, fetchPlansFromIntervals } from '../lib/intervalsIntegration'
 import { buildIntervalsCredentialHeaders, getIntervalsCredentials, type IntervalsCredentials } from '../lib/integrationCredentials'
 import { comparePlans, getChangeSummary } from '../lib/diffPlanner'
 import { useAnalytics } from '../lib/analytics'
@@ -44,6 +44,7 @@ import { SeasonPlanner } from './SeasonPlanner'
 import CoachToday from './CoachToday'
 import PlanCoachChat from './PlanCoachChat'
 import { DailyNutritionGuide } from './DailyNutritionGuide'
+import { CoachSkeleton } from './LoadingSkeletons'
 import { useLocale } from '../lib/i18n'
 import {
   CalendarIcon,
@@ -107,6 +108,7 @@ export default function PlansWorkspace() {
   const [plan, setPlan] = useState<TrainingPlan | null>(null)
   const [currentPlan, setCurrentPlan] = useState<TrainingPlan | null>(null)
   const [loading, setLoading] = useState(false)
+  const [initializing, setInitializing] = useState(true)
   const [userProfile, setUserProfile] = useState<Partial<UserProfile> | null>(null)
   const [planDiff, setPlanDiff] = useState<PlanDiff | null>(null)
   const [changedSessions, setChangedSessions] = useState<Set<string>>(new Set())
@@ -116,6 +118,7 @@ export default function PlansWorkspace() {
   const [intervalsSyncStatus, setIntervalsSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle')
   const [syncMessage, setSyncMessage] = useState('')
   const initialRemotePlanSyncRef = useRef<string | null>(null)
+  const planSyncLockRef = useRef<Promise<void> | null>(null)
   const [lastSyncAudit, setLastSyncAudit] = useState<SyncDecisionAudit | null>(null)
   const [syncReconciliationMode, setSyncReconciliationMode] = useState<SyncReconciliationMode>('conservative')
   const [intervalsChanges, setIntervalsChanges] = useState<SyncResult['changes']>([])
@@ -220,8 +223,32 @@ export default function PlansWorkspace() {
   )
 
   const { isRunning, startSync, stopSync } = useSyncWorker(intervalsCredentials, handleWorkerSyncResult, userProfile?.timezone)
+  const startSyncRef = useRef(startSync)
+  const stopSyncRef = useRef(stopSync)
+
+  startSyncRef.current = startSync
+  stopSyncRef.current = stopSync
 
   const hasChanges = useMemo(() => changedSessions.size > 0, [changedSessions])
+
+  const acquirePlanSyncLock = useCallback(async (): Promise<() => void> => {
+    while (planSyncLockRef.current) {
+      await planSyncLockRef.current
+    }
+
+    let releaseLock!: () => void
+    const lock = new Promise<void>((resolve) => {
+      releaseLock = resolve
+    })
+    planSyncLockRef.current = lock
+
+    return () => {
+      if (planSyncLockRef.current === lock) {
+        planSyncLockRef.current = null
+      }
+      releaseLock()
+    }
+  }, [])
 
   const matchedRides = useMemo<RideMatchMap>(() => {
     if (!currentPlan || intervalsRideData.length === 0) return new Map()
@@ -563,7 +590,18 @@ export default function PlansWorkspace() {
   }, [planRepository])
 
   const persistPlanUpdate = useCallback(async (nextPlan: TrainingPlan, expectedRevision = nextPlan.revision ?? 0) => {
-    const result = await planRepository.updatePlan({ plan: nextPlan, expectedRevision })
+    let result = await planRepository.updatePlan({ plan: nextPlan, expectedRevision })
+    // Background sync, repair, and another open tab can advance the revision
+    // between loading a plan and saving it. Retry once against the latest
+    // server revision so transient optimistic-lock conflicts do not surface as
+    // failed plan requests.
+    if (!result.ok && result.error.code === 'conflict' && result.error.latest) {
+      const latestRevision = result.error.latest.revision ?? expectedRevision
+      result = await planRepository.updatePlan({
+        plan: { ...nextPlan, revision: latestRevision, updatedAt: new Date() },
+        expectedRevision: latestRevision,
+      })
+    }
     if (!result.ok) {
       throw new Error(result.error.message)
     }
@@ -725,6 +763,8 @@ export default function PlansWorkspace() {
         }
       } catch (error) {
         console.error('Initialization failed', { error })
+      } finally {
+        setInitializing(false)
       }
     }
 
@@ -733,19 +773,20 @@ export default function PlansWorkspace() {
 
   useEffect(() => {
     if (intervalsCredentials) {
-      startSync()
+      startSyncRef.current()
     }
 
     return () => {
-      stopSync()
+      stopSyncRef.current()
     }
-  }, [intervalsCredentials, startSync, stopSync])
+  }, [intervalsCredentials?.apiKey, intervalsCredentials?.athleteId])
 
   const performIntervalsSync = useCallback(async () => {
-    if (!userProfile || !intervalsCredentials) {
+    if (!userProfile || !intervalsCredentials || planSyncLockRef.current) {
       return
     }
 
+    const releasePlanSyncLock = await acquirePlanSyncLock()
     setIntervalsSyncStatus('syncing')
     setSyncMessage('Syncing with Intervals.icu...')
     startTimer('intervals_sync')
@@ -961,7 +1002,7 @@ export default function PlansWorkspace() {
               // Fetch the grouped backup when the prefix count is no larger than
               // the local count, then prefer the complete remote copy if it has
               // additional sessions or weeks.
-              if (checkPayload.matchCount <= localTrainableSessions.length) {
+              if (hasRecordedPlanSync && checkPayload.matchCount <= localTrainableSessions.length) {
                 const backupResult = await fetchPlansFromIntervals()
                 const matchingRemotePlan = backupResult.plans
                   .filter((remotePlan) => normalizePlanName(remotePlan.name) === normalizePlanName(currentPlan.name))
@@ -993,21 +1034,23 @@ export default function PlansWorkspace() {
               // The local plan ID can become stale after a restore, browser reset,
               // or an earlier replacement sync. Recover the complete matching plan
               // by name/date so remote future sessions are not silently discarded.
-              const backupResult = await fetchPlansFromIntervals()
-              const matchingRemotePlan = backupResult.plans
-                .filter((remotePlan) => normalizePlanName(remotePlan.name) === normalizePlanName(currentPlan.name))
-                .filter((remotePlan) => plansHaveDateOverlap(currentPlan, remotePlan))
-                .sort((left, right) => countTrainableSessions(right) - countTrainableSessions(left))[0]
+              if (hasRecordedPlanSync) {
+                const backupResult = await fetchPlansFromIntervals()
+                const matchingRemotePlan = backupResult.plans
+                  .filter((remotePlan) => normalizePlanName(remotePlan.name) === normalizePlanName(currentPlan.name))
+                  .filter((remotePlan) => plansHaveDateOverlap(currentPlan, remotePlan))
+                  .sort((left, right) => countTrainableSessions(right) - countTrainableSessions(left))[0]
 
-              if (matchingRemotePlan && countTrainableSessions(matchingRemotePlan) > localTrainableCount) {
-                planAfterDeletions = mergeRemotePlanSessions(currentPlan, matchingRemotePlan)
-                await persistPlanUpdate(planAfterDeletions, currentPlan.revision ?? 0)
-                setPlan(planAfterDeletions)
-                setCurrentPlan(planAfterDeletions)
-                setPlanDiff(null)
-                setSyncMessage(`Recovered ${countTrainableSessions(matchingRemotePlan)} remote session(s) into the calendar.`)
-                shouldForcePlanPush = false
-                missingRemoteSessionCount = 0
+                if (matchingRemotePlan && countTrainableSessions(matchingRemotePlan) > localTrainableCount) {
+                  planAfterDeletions = mergeRemotePlanSessions(currentPlan, matchingRemotePlan)
+                  await persistPlanUpdate(planAfterDeletions, currentPlan.revision ?? 0)
+                  setPlan(planAfterDeletions)
+                  setCurrentPlan(planAfterDeletions)
+                  setPlanDiff(null)
+                  setSyncMessage(`Recovered ${countTrainableSessions(matchingRemotePlan)} remote session(s) into the calendar.`)
+                  shouldForcePlanPush = false
+                  missingRemoteSessionCount = 0
+                }
               }
             }
           }
@@ -1235,6 +1278,8 @@ export default function PlansWorkspace() {
         error: error instanceof Error ? error.message : 'Unknown error',
       })
       console.error('Intervals sync failed', { error })
+    } finally {
+      releasePlanSyncLock()
     }
   }, [
     accessToken,
@@ -1252,6 +1297,7 @@ export default function PlansWorkspace() {
     trackEvent,
     trackMetric,
     userProfile,
+    acquirePlanSyncLock,
   ])
 
   useEffect(() => {
@@ -1326,30 +1372,35 @@ export default function PlansWorkspace() {
 
   const syncPlanWithIntervals = useCallback(
     async (mode: PlanSyncMode, planToSync: TrainingPlan) => {
-      const response = await fetch('/api/intervals/plans', {
-        method: 'POST',
-        headers: await buildIntervalsCredentialHeaders({
-          'Content-Type': 'application/json',
-        }, planToSync.timezone),
-        body: JSON.stringify({ mode, plan: planToSync }),
-      })
+      const releasePlanSyncLock = await acquirePlanSyncLock()
+      try {
+        const response = await fetch('/api/intervals/plans', {
+          method: 'POST',
+          headers: await buildIntervalsCredentialHeaders({
+            'Content-Type': 'application/json',
+          }, planToSync.timezone),
+          body: JSON.stringify({ mode, plan: planToSync }),
+        })
 
-      if (!response.ok) {
-        const payload = (await response.json()) as { error?: string; details?: string }
-        throw new Error(buildSyncErrorMessage(payload.error, payload.details))
+        if (!response.ok) {
+          const payload = (await response.json()) as { error?: string; details?: string }
+          throw new Error(buildSyncErrorMessage(payload.error, payload.details))
+        }
+
+        return await response.json() as {
+          success: boolean
+          externalPlanId?: string
+          syncedEvents?: number
+          deleted?: number
+          subscriptionLimited?: boolean
+          error?: string
+          details?: string
+        }
+      } finally {
+        releasePlanSyncLock()
       }
-
-      return response.json() as Promise<{
-        success: boolean
-        externalPlanId?: string
-        syncedEvents?: number
-        deleted?: number
-        subscriptionLimited?: boolean
-        error?: string
-        details?: string
-      }>
     },
-    []
+    [acquirePlanSyncLock]
   )
 
   const confirmPlanPublication = useCallback(async () => {
@@ -1357,7 +1408,10 @@ export default function PlansWorkspace() {
 
     setIntervalsSyncStatus('syncing')
     try {
-      const syncResult = await syncPlanWithIntervals('upsert', currentPlan)
+      // Publishing a newly generated plan must replace the previous VeloPlanner
+      // schedule. A new plan has a new external ID, so upsert would leave the
+      // previous plan's events in Intervals.icu and show duplicate workouts.
+      const syncResult = await syncPlanWithIntervals('replace', currentPlan)
       if (!syncResult.success) {
         throw new Error(buildSyncErrorMessage(syncResult.error, syncResult.details))
       }
@@ -1498,9 +1552,6 @@ export default function PlansWorkspace() {
 
         trackEvent(profile.hasPowerMeter ? 'power_meter_enabled' : 'power_meter_disabled')
 
-        if (intervalsCredentials && (await isIntervalsSyncNeeded())) {
-          await performIntervalsSync()
-        }
       } catch (error) {
         console.error('Failed to create plan', { error })
         setSyncMessage(`Plan creation failed: ${toErrorMessage(error)}`)
@@ -1509,7 +1560,7 @@ export default function PlansWorkspace() {
         setLoading(false)
       }
     },
-    [accessToken, endTimer, intervalsCredentials, intervalsRideData, performIntervalsSync, planRepository, refreshStoredPlans, startTimer, trackEvent, userProfile]
+    [accessToken, endTimer, intervalsRideData, planRepository, refreshStoredPlans, startTimer, trackEvent, userProfile]
   )
 
   const handleSelectPlan = useCallback(async (planId: string) => {
@@ -2644,6 +2695,11 @@ export default function PlansWorkspace() {
       </div>
     )
   }
+
+  if (initializing) {
+    return <CoachSkeleton />
+  }
+
   return (
     <div className={styles.container}>
       <PlanCoachChat onCreatePlan={handleCreatePlan} loading={loading} />
@@ -3115,7 +3171,15 @@ function mergeRemotePlanSessions(localPlan: TrainingPlan, remotePlan: TrainingPl
       })
     }
 
-    const sessions = [...sessionsById.values()].sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime())
+    const sessionsByDate = new Map<string, TrainingSession>()
+    for (const session of sessionsById.values()) {
+      const date = new Date(session.date)
+      const dateKey = formatDateInput(date)
+      if (!sessionsByDate.has(dateKey)) {
+        sessionsByDate.set(dateKey, session)
+      }
+    }
+    const sessions = [...sessionsByDate.values()].sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime())
     return {
       ...(localWeek || remoteWeek || { weekNumber, phase: 'base' as const, focusPoints: [] }),
       weekNumber,

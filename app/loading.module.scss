@@ -1,0 +1,52 @@
+.page {
+  min-height: 55vh;
+  display: grid;
+  place-items: center;
+  padding: 2rem 1rem 4rem;
+}
+
+.card {
+  width: min(900px, 100%);
+  padding: 1.5rem;
+  border: 1px solid var(--theme-border);
+  border-radius: 14px;
+  background: var(--theme-surface);
+  box-shadow: 0 2px 8px var(--theme-card-shadow);
+}
+
+.title,
+.line,
+.lineShort,
+.panel {
+  border-radius: 7px;
+  background: linear-gradient(90deg, var(--theme-border-light), var(--theme-surface-hover), var(--theme-border-light));
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.title { width: 36%; height: 1.6rem; margin-bottom: 1.2rem; }
+.line { width: 75%; height: 0.85rem; margin-bottom: 0.7rem; }
+.lineShort { width: 48%; height: 0.85rem; margin-bottom: 1.5rem; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.panel { min-height: 110px; }
+
+.card p {
+  margin: 1.5rem 0 0;
+  color: var(--theme-text-secondary);
+  font-size: 0.9rem;
+}
+
+@keyframes shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+@media (max-width: 640px) {
+  .grid { grid-template-columns: 1fr; }
+}

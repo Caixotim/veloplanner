@@ -67,6 +67,46 @@
   }
 }
 
+.loadingCard {
+  min-height: 190px;
+}
+
+.skeletonTitle,
+.skeletonLine,
+.skeletonLineShort {
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--theme-border-light), var(--theme-surface-hover), var(--theme-border-light));
+  background-size: 200% 100%;
+  animation: profileShimmer 1.4s ease-in-out infinite;
+}
+
+.skeletonTitle {
+  width: 42%;
+  height: 1.35rem;
+  margin-bottom: 1.2rem;
+}
+
+.skeletonLine {
+  width: 88%;
+  height: 0.9rem;
+  margin-bottom: 0.75rem;
+}
+
+.skeletonLineShort {
+  width: 62%;
+  height: 0.9rem;
+}
+
+.loadingLabel {
+  margin-top: 1.5rem !important;
+  font-size: 0.9rem;
+}
+
+@keyframes profileShimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
 .success,
 .error {
   margin-top: 1rem;

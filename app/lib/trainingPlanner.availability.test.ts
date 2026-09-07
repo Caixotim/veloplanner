@@ -84,6 +84,7 @@ describe('generateTrainingPlan availability constraints', () => {
     expect(trainableSessions).toHaveLength(1)
     expect(trainableSessions[0].date.getDay()).toBe(0)
     expect(trainableSessions[0].duration).toBeLessThanOrEqual(180)
+    expect(new Set(plan.weeks[0].sessions.map((session) => session.date.toISOString().slice(0, 10))).size).toBe(plan.weeks[0].sessions.length)
   })
 
   it('creates sessions across available days even when weekly hours are below six', () => {

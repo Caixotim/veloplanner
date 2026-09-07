@@ -76,6 +76,9 @@ export function AccountMigrationPrompt() {
               <button type="button" onClick={() => { setReport(null); void runMigration() }} disabled={busy}>Retry failed items</button>
             </>
           )}
+          <button type="button" onClick={() => { void resolveAccountScope(user.id, 'skip'); setHasLocalData(false) }} disabled={busy}>
+            {report.failures.length ? 'Continue without failed items' : 'Continue'}
+          </button>
         </>
       )}
     </aside>

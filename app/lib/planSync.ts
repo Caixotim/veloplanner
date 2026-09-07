@@ -1,17 +1,21 @@
 import type { TrainingSession } from './types'
+import { formatDateInTimezone, normalizeTimezone } from './timezone'
 
 export type SyncSessionEntry = {
   week: number
   session: TrainingSession
 }
 
-export function deduplicateSyncSessions(sessions: SyncSessionEntry[]): SyncSessionEntry[] {
+export function deduplicateSyncSessions(sessions: SyncSessionEntry[], timeZone = 'UTC'): SyncSessionEntry[] {
   const seen = new Set<string>()
+  const normalizedTimeZone = normalizeTimezone(timeZone)
 
   return sessions.filter(({ session }) => {
-    const date = toDateKey(session.date)
-    const modality = `${session.type}:${[...session.equipment].sort().join(',')}`
-    const key = `${date}:${modality}`
+    const date = toDateKey(session.date, normalizedTimeZone)
+    // Intervals.icu is date-based for planned events. A plan must never publish
+    // more than one workout for the same local calendar day, even when stale
+    // local data contains sessions with different types or equipment.
+    const key = date
 
     if (seen.has(key)) return false
     seen.add(key)
@@ -19,10 +23,7 @@ export function deduplicateSyncSessions(sessions: SyncSessionEntry[]): SyncSessi
   })
 }
 
-function toDateKey(value: Date | string | number): string {
+function toDateKey(value: Date | string | number, timeZone: string): string {
   const date = value instanceof Date ? value : new Date(value)
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  return formatDateInTimezone(date, timeZone)
 }

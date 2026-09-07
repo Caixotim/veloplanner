@@ -36,6 +36,9 @@ export async function POST(request: Request, context: Context) {
   if (typeof body.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.date)) return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 })
   if (body.session !== undefined && (typeof body.session !== 'object' || body.session === null || Array.isArray(body.session))) return NextResponse.json({ error: 'session must be an object' }, { status: 400 })
   const { data, error } = await session.supabase!.from('sessions').insert({ id: body.id, plan_id: planId, user_id: session.user!.id, session_date: body.date, session_json: body.session ?? {} }).select('*').single()
-  if (error) return NextResponse.json({ error: 'Unable to create session' }, { status: 500 })
+  if (error) {
+    if (error.code === '23505') return NextResponse.json({ error: 'Session already exists' }, { status: 409 })
+    return NextResponse.json({ error: 'Unable to create session' }, { status: 500 })
+  }
   return NextResponse.json({ session: data }, { status: 201 })
 }

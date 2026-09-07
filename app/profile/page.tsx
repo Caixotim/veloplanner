@@ -13,6 +13,7 @@ import styles from './page.module.scss'
 import { useLocale } from '../lib/i18n'
 import { getPlanRepository } from '../lib/repositorySelector'
 import { waitForAccountScope } from '../lib/accountScope'
+import { ProfileSkeleton } from '../components/LoadingSkeletons'
 
 type SaveStatus =
   | { kind: 'idle' }
@@ -42,7 +43,14 @@ export default function ProfilePage() {
     setLoading(true)
 
     try {
-      await waitForAccountScope()
+      // Account migration can be waiting for a decision in another component.
+      // Do not leave the profile page in a permanent loading state while that
+      // prompt is being resolved; the cloud repository authenticates each
+      // request independently.
+      await Promise.race([
+        waitForAccountScope(),
+        new Promise<void>((resolve) => window.setTimeout(resolve, 8000)),
+      ])
       if (planId) {
         const storedPlan = await planRepository.loadPlan(planId)
 
@@ -214,6 +222,10 @@ export default function ProfilePage() {
     }
   }, [linkedPlan, planRepository, profile, syncPlanWithIntervals])
 
+  if (loading) {
+    return <ProfileSkeleton />
+  }
+
   return (
     <div className={styles.container}>
       <header className={styles.header}>
@@ -248,12 +260,6 @@ export default function ProfilePage() {
           showPlanInputs={false}
           showAthleteDetails={true}
         />
-      )}
-
-      {loading && (
-        <section className={styles.section}>
-          <p>{translateText('Loading profile...')}</p>
-        </section>
       )}
 
       {status.kind !== 'idle' && (

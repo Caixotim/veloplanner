@@ -461,8 +461,11 @@ function generateWeekSessions(
     phase,
     userProfile.intensityDistribution || 'conservative'
   )
+  const equipmentCompatibleSessionTypes = hasStrengthTrainingEquipment(userProfile.equipment)
+    ? finalSessionTypes
+    : finalSessionTypes.filter((template) => template.type !== 'strength')
   const uniqueSessionTypes = selectAvailableSessionTemplates(
-    deduplicateSessionTemplates(finalSessionTypes),
+    deduplicateSessionTemplates(equipmentCompatibleSessionTypes),
     weekStartDate,
     userProfile.availableTime
   )
@@ -597,13 +600,28 @@ function generateWeekSessions(
     })
   }
 
-  const sortedSessions = sessions.sort((a, b) => a.dayOfWeek - b.dayOfWeek)
+  const sortedSessions = deduplicateSessionsByDate(sessions.sort((a, b) => a.dayOfWeek - b.dayOfWeek))
   return applyWeeklyLoadBudget({
     sessions: sortedSessions,
     phase,
     weekNumber,
     previousWeekLoadScore,
   })
+}
+
+/** A calendar day represents one training slot, never multiple rides. */
+function deduplicateSessionsByDate(sessions: TrainingSession[]): TrainingSession[] {
+  const byDate = new Map<string, TrainingSession>()
+
+  for (const session of sessions) {
+    const key = formatPlanStartDate(new Date(session.date))
+    const existing = byDate.get(key)
+    if (!existing || session.duration > existing.duration || (session.type !== 'recovery' && existing.type === 'recovery')) {
+      byDate.set(key, session)
+    }
+  }
+
+  return [...byDate.values()].sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime())
 }
 
 function selectAvailableSessionTemplates(
@@ -1268,6 +1286,10 @@ function selectEquipmentForSession(type: SessionType, availableEquipment: Equipm
   }
 
   return []
+}
+
+function hasStrengthTrainingEquipment(availableEquipment: Equipment[]): boolean {
+  return availableEquipment.some((equipment) => equipment === 'resistance_bands' || equipment === 'dumbbells' || equipment === 'rowing_machine')
 }
 
 function getSessionIntensity(type: SessionType): 'easy' | 'moderate' | 'hard' | 'very_hard' {

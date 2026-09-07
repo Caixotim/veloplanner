@@ -33,7 +33,31 @@ type PlanSyncResponse = {
   subscriptionLimited?: boolean
 }
 
+const planSyncLocks = new Map<string, Promise<void>>()
+
+async function acquirePlanSyncLock(athleteId: string): Promise<() => void> {
+  const previous = planSyncLocks.get(athleteId)
+  let releaseCurrent!: () => void
+  const current = new Promise<void>((resolve) => {
+    releaseCurrent = resolve
+  })
+  const queued = previous ? previous.then(() => current) : current
+  planSyncLocks.set(athleteId, queued)
+
+  if (previous) {
+    await previous
+  }
+
+  return () => {
+    if (planSyncLocks.get(athleteId) === queued) {
+      planSyncLocks.delete(athleteId)
+    }
+    releaseCurrent()
+  }
+}
+
 export async function POST(request: Request): Promise<Response> {
+  let releasePlanSyncLock: (() => void) | undefined
   try {
     const body: unknown = await request.json()
     if (!isPlanSyncRequest(body)) {
@@ -47,7 +71,8 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ error: 'Plan payload is required' }, { status: 400 })
     }
 
-    const config = (await getAuthenticatedIntervalsConfig()) ?? getIntervalsConfigFromRequest(request)
+    const requestConfig = getIntervalsConfigFromRequest(request)
+    const config = hasIntervalsConfig(requestConfig) ? requestConfig : (await getAuthenticatedIntervalsConfig() ?? requestConfig)
     if (!hasIntervalsConfig(config)) {
       return Response.json(
         {
@@ -58,6 +83,11 @@ export async function POST(request: Request): Promise<Response> {
       )
     }
 
+    // Replace/upsert is a delete-then-create operation. Serialize requests for
+    // one athlete so two tabs or an automatic/manual sync cannot interleave and
+    // recreate the same workout set twice.
+    releasePlanSyncLock = await acquirePlanSyncLock(config.athleteId)
+
     const externalPlanId = plan.externalPlanId || plan.id
     const sessions = flattenTrainableSessions(plan)
 
@@ -67,11 +97,15 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     if (mode === 'replace') {
-      try {
-        await deleteAllVeloPlannerEvents(config.athleteId, config)
-      } catch (error) {
-        console.warn('Unable to remove all stale VeloPlanner events before replacement', { error })
-      }
+      await deleteAllVeloPlannerEvents(config.athleteId, config)
+      await deletePlanEvents(config.athleteId, externalPlanId, sessions, config)
+    }
+
+    if (mode === 'upsert') {
+      // Older syncs could create duplicate events when a retry happened after
+      // Intervals.icu accepted the original request. Remove every event owned
+      // by this plan before publishing the canonical, date-deduplicated set.
+      // This keeps upsert self-healing without deleting unrelated athlete events.
       await deletePlanEvents(config.athleteId, externalPlanId, sessions, config)
     }
 
@@ -92,7 +126,7 @@ export async function POST(request: Request): Promise<Response> {
         }
       }
     }
-    const uniqueSessions = deduplicateSyncSessions(allSessions)
+    const uniqueSessions = deduplicateSyncSessions(allSessions, timeZone)
 
     // Capacity is checked per session in ensureDailyEventCapacity(). Doing it
     // there preserves updates to an existing event while rejecting only new
@@ -226,6 +260,8 @@ export async function POST(request: Request): Promise<Response> {
       { error: 'Failed to sync plan to Intervals.icu', details: error instanceof Error ? error.message : 'Unknown' },
       { status: 500 }
     )
+  } finally {
+    releasePlanSyncLock?.()
   }
 }
 

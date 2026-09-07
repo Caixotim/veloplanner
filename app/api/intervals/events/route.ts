@@ -25,7 +25,8 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ success: false, error: 'oldest and newest are required' }, { status: 400 })
     }
 
-    const config = (await getAuthenticatedIntervalsConfig()) ?? getIntervalsConfigFromRequest(request)
+    const requestConfig = getIntervalsConfigFromRequest(request)
+    const config = hasIntervalsConfig(requestConfig) ? requestConfig : (await getAuthenticatedIntervalsConfig() ?? requestConfig)
     if (!hasIntervalsConfig(config)) {
       return Response.json(
         {

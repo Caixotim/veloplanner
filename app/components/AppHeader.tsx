@@ -7,9 +7,11 @@ import { LocaleSwitcher } from './LocaleSwitcher'
 import { useLocale } from '../lib/i18n'
 import { AuthStatus } from './AuthStatus'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 export function AppHeader() {
   const { t } = useLocale()
+  const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
@@ -18,8 +20,9 @@ export function AppHeader() {
     setSettingsOpen(false)
   }
 
-  const closeMenusAfterNavigation = () => {
-    window.setTimeout(closeMenus, 0)
+  const navigate = (path: string) => {
+    closeMenus()
+    router.push(path)
   }
 
   return (
@@ -51,9 +54,9 @@ export function AppHeader() {
           <span aria-hidden="true">{menuOpen ? '×' : '☰'}</span>
         </button>
         <nav id="global-navigation" className={`nav${menuOpen ? ' navOpen' : ''}`}>
-          <Link href="/coach" className="navButton" onClick={closeMenusAfterNavigation}><HomeIcon size={16} className="navIcon" />{t('home')}</Link>
-          <Link href="/integrations" className="navButton" onClick={closeMenusAfterNavigation}><PlugIcon size={16} className="navIcon" />{t('connectData')}</Link>
-          <Link href="/profile" className="navButton mobileOptionalNav" onClick={closeMenusAfterNavigation}><UserIcon size={16} className="navIcon" />{t('athlete')}</Link>
+          <Link href="/coach" className="navButton" onClick={(event) => { event.preventDefault(); navigate('/coach') }}><HomeIcon size={16} className="navIcon" />{t('home')}</Link>
+          <Link href="/integrations" className="navButton" onClick={(event) => { event.preventDefault(); navigate('/integrations') }}><PlugIcon size={16} className="navIcon" />{t('connectData')}</Link>
+          <Link href="/profile" className="navButton mobileOptionalNav" onClick={(event) => { event.preventDefault(); navigate('/profile') }}><UserIcon size={16} className="navIcon" />{t('athlete')}</Link>
           <div className="mobileOptionalNav"><LocaleSwitcher /></div>
           <div className="desktopSettings"><SettingsMenu /></div>
           <AuthStatus />

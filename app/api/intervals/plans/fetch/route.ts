@@ -1,4 +1,5 @@
 import type { TrainingPlan, TrainingSession, TrainingWeek } from '@/app/lib/types'
+import { deduplicateSyncSessions } from '@/app/lib/planSync'
 import { getIntervalsConfigFromRequest, hasIntervalsConfig, intervalsRequest, toLocalIsoDate } from '../../_utils'
 import { getAuthenticatedIntervalsConfig } from '../../serverConfig'
 
@@ -29,7 +30,8 @@ type PlansResponse = {
  */
 export async function POST(request: Request): Promise<Response> {
   try {
-    const config = (await getAuthenticatedIntervalsConfig()) ?? getIntervalsConfigFromRequest(request)
+    const requestConfig = getIntervalsConfigFromRequest(request)
+    const config = hasIntervalsConfig(requestConfig) ? requestConfig : (await getAuthenticatedIntervalsConfig() ?? requestConfig)
     if (!hasIntervalsConfig(config)) {
       return Response.json(
         {
@@ -156,7 +158,11 @@ function mergeFragmentedPlans(plans: TrainingPlan[]): TrainingPlan[] {
       sessionsById.set(session.id, session)
     }
 
-    const allSessions = [...sessionsById.values()].sort((left, right) => left.date.getTime() - right.date.getTime())
+    const allSessions = deduplicateSyncSessions(
+      [...sessionsById.values()].map((session) => ({ week: 1, session }))
+    )
+      .map(({ session }) => session)
+      .sort((left, right) => left.date.getTime() - right.date.getTime())
     const startDate = new Date(Math.min(existingStart, planStart))
     const endDate = new Date(Math.max(existingEnd, planEnd))
     const durationWeeks = Math.max(existing.durationWeeks, plan.durationWeeks, Math.ceil((endDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000)))
@@ -246,7 +252,9 @@ function reconstructPlanFromEvents(planId: string, events: IntervalsEvent[]): Tr
   const weeks: TrainingWeek[] = []
   const maxWeek = Math.max(...sessions.keys(), 1)
   for (let week = 1; week <= maxWeek; week++) {
-    const weekSessions = sessions.get(week) || []
+    const weekSessions = deduplicateSyncSessions(
+      (sessions.get(week) || []).map((session) => ({ week, session }))
+    ).map(({ session }) => session)
     weeks.push({
       weekNumber: week,
       phase: week <= 4 ? 'base' : week <= 8 ? 'build' : week <= 10 ? 'peak' : 'recovery',

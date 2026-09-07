@@ -137,6 +137,7 @@ type CalendarWeekRow = {
     sourceDayOfWeek: number | null
     session: TrainingSession | null
     isInPlanRange: boolean
+    isInWeek: boolean
   }>
 }
 
@@ -145,7 +146,17 @@ function normalizeDateOnly(date: Date): Date {
 }
 
 function toDate(value: Date | string): Date {
-  return value instanceof Date ? value : new Date(value)
+  if (value instanceof Date) {
+    return value
+  }
+
+  const dateOnlyMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch
+    return new Date(Number(year), Number(month) - 1, Number(day), 6, 0, 0, 0)
+  }
+
+  return new Date(value)
 }
 
 function startOfIsoWeek(date: Date): Date {
@@ -260,6 +271,7 @@ function buildCalendarWeekRows(plan: TrainingPlan): CalendarWeekRow[] {
         sourceDayOfWeek: source?.sourceDayOfWeek ?? derivedCoordinates?.dayOfWeek ?? null,
         session: source?.session ?? null,
         isInPlanRange,
+        isInWeek: true,
       }
     })
 
@@ -274,6 +286,42 @@ function buildCalendarWeekRows(plan: TrainingPlan): CalendarWeekRow[] {
   }
 
   return rows
+}
+
+function addCalendarDays(date: Date, days: number): Date {
+  const result = normalizeDateOnly(date)
+  result.setDate(result.getDate() + days)
+  return result
+}
+
+function buildVisibleCalendarRows(calendarWeekRows: CalendarWeekRow[], periodAnchor: Date, periodDays: number): CalendarWeekRow[] {
+  const periodDates = Array.from({ length: periodDays }, (_, index) => addCalendarDays(periodAnchor, index))
+  const periodDateKeys = new Set(periodDates.map(formatDateKey))
+
+  return calendarWeekRows
+    .filter((week) => week.cells.some((cell) => periodDateKeys.has(cell.dateKey)))
+    .map((week) => {
+      const cellsByDate = new Map(week.cells.map((cell) => [cell.dateKey, cell]))
+      const cells = periodDates.map((date) => {
+        const dateKey = formatDateKey(date)
+        const existing = cellsByDate.get(dateKey)
+        if (existing) {
+          return existing
+        }
+
+        return {
+          date,
+          dateKey,
+          sourceWeekNumber: null,
+          sourceDayOfWeek: null,
+          session: null,
+          isInPlanRange: false,
+          isInWeek: false,
+        }
+      })
+
+      return { ...week, cells }
+    })
 }
 
 function getPlanWeekLabelForRow(cells: CalendarWeekRow['cells']): string {
@@ -339,16 +387,13 @@ export default function TrainingCalendar({
   const hasTodayInCalendar = calendarWeekRows.some((week) => week.cells.some((cell) => cell.dateKey === todayDateKey))
 
   const periodDays = calendarView === 'week' ? WEEK_LENGTH_DAYS : calendarView === 'threeDays' ? 3 : 1
-  const periodAnchor = calendarView === 'week' ? startOfIsoWeek(periodStart) : periodStart
-  const periodEnd = new Date(periodAnchor)
-  periodEnd.setDate(periodAnchor.getDate() + periodDays - 1)
-  const visibleCalendarRows = calendarWeekRows
-    .map((week) => ({
-      ...week,
-      cells: week.cells.filter((cell) => cell.date >= periodAnchor && cell.date <= periodEnd),
-    }))
-    .filter((week) => week.cells.length > 0)
-  const visibleCalendarCells = visibleCalendarRows.flatMap((week) => week.cells)
+  const periodAnchor = normalizeDateOnly(calendarView === 'week' ? startOfIsoWeek(periodStart) : periodStart)
+  const periodEnd = addCalendarDays(periodAnchor, periodDays - 1)
+  const visibleCalendarRows = buildVisibleCalendarRows(calendarWeekRows, periodAnchor, periodDays)
+  const visibleCalendarCells = Array.from({ length: periodDays }, (_, index) => ({
+    date: addCalendarDays(periodAnchor, index),
+    dateKey: formatDateKey(addCalendarDays(periodAnchor, index)),
+  }))
   const visibleOldest = formatDateKey(periodAnchor)
   const visibleNewest = formatDateKey(periodEnd)
 
@@ -643,6 +688,10 @@ export default function TrainingCalendar({
                 </td>
 
                 {calendarWeek.cells.map((cell) => {
+                  if (!cell.isInWeek) {
+                    return <td key={cell.dateKey} className={styles.sessionCell} aria-hidden="true" />
+                  }
+
                   const dayOfWeek = cell.sourceDayOfWeek
                   const weekNumber = cell.sourceWeekNumber
                   const existingSession = cell.session

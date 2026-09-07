@@ -55,13 +55,29 @@ export async function migrateLocalAccount(source: LocalMigrationSource, target: 
     try {
       const remoteSessionIds = new Set((await target.listSessions(stored.id)).map((session) => session.id))
       for (const session of stored.plan.weeks.flatMap((week) => week.sessions)) {
-        if (remoteSessionIds.has(session.id)) {
+        const migrationSessionId = `${stored.id}_${session.id}`
+        if (remoteSessionIds.has(session.id) || remoteSessionIds.has(migrationSessionId)) {
           report.sessionsSkipped += 1
           continue
         }
         try {
-          await target.createSession({ planId: stored.id, session, timezone: stored.plan.timezone })
-          remoteSessionIds.add(session.id)
+          // Preserve the original ID when possible. If browser-generated IDs
+          // collide across local plans, retry with a plan-scoped ID.
+          try {
+            await target.createSession({ planId: stored.id, session, timezone: stored.plan.timezone })
+            remoteSessionIds.add(session.id)
+          } catch (error) {
+            const message = error instanceof Error ? error.message.toLowerCase() : ''
+            if (!message.includes('already exists') && !message.includes('duplicate') && !message.includes('conflict')) {
+              throw error
+            }
+            await target.createSession({
+              planId: stored.id,
+              session: { ...session, id: migrationSessionId },
+              timezone: stored.plan.timezone,
+            })
+            remoteSessionIds.add(migrationSessionId)
+          }
           report.sessionsImported += 1
         } catch (error) {
           report.failures.push({ kind: 'session', id: session.id, message: error instanceof Error ? error.message : 'Session import failed' })

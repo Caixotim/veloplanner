@@ -605,11 +605,6 @@ export async function fetchIntervalsBlockedDates(oldest: string, newest: string)
  */
 export async function fetchPlansFromIntervals(): Promise<{ plans: TrainingPlan[]; success: boolean; error?: string }> {
   try {
-    const credentials = await getIntervalsCredentials()
-    if (!credentials) {
-      return { plans: [], success: false, error: 'Intervals credentials missing' }
-    }
-
     const response = await fetch('/api/intervals/plans/fetch', {
       method: 'POST',
       headers: await buildIntervalsCredentialHeaders({ 'Content-Type': 'application/json' }),

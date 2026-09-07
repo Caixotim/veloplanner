@@ -113,7 +113,10 @@ export async function POST(request: Request): Promise<Response> {
     const forceRefresh = body.forceRefresh === true
     const timeZone = getTimezoneFromRequest(request)
 
-    const config = (await getAuthenticatedIntervalsConfig()) ?? getIntervalsConfigFromRequest(request)
+    // Prefer the current browser credentials. This also lets users recover
+    // when a server encryption key was rotated after the connection was saved.
+    const requestConfig = getIntervalsConfigFromRequest(request)
+    const config = hasIntervalsConfig(requestConfig) ? requestConfig : (await getAuthenticatedIntervalsConfig() ?? requestConfig)
     if (!hasIntervalsConfig(config)) {
       return Response.json(
         {

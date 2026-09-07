@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { ThemeSelector } from './ThemeSelector'
 import { LocaleSwitcher } from './LocaleSwitcher'
 import { useLocale } from '../lib/i18n'
@@ -16,6 +17,7 @@ interface SettingsMenuProps {
 
 export function SettingsMenu({ className, isOpen: controlledOpen, onOpenChange }: SettingsMenuProps) {
   const { isPortuguese, t } = useLocale()
+  const router = useRouter()
   const [internalOpen, setInternalOpen] = useState(false)
   const isControlled = controlledOpen !== undefined
   const isOpen = controlledOpen ?? internalOpen
@@ -95,7 +97,11 @@ export function SettingsMenu({ className, isOpen: controlledOpen, onOpenChange }
             <div className={styles.menuLabel}>{isPortuguese ? 'Tema' : 'Theme'}</div>
             <ThemeSelector className={styles.themeSelectorWrapper} />
           </div>
-          <Link href="/profile" className={styles.profileLink} onClick={() => window.setTimeout(() => setIsOpen(false), 0)}>
+          <Link href="/profile" className={styles.profileLink} onClick={(event) => {
+            event.preventDefault()
+            setIsOpen(false)
+            router.push('/profile')
+          }}>
             {isPortuguese ? 'Abrir perfil do atleta' : 'Open athlete profile'}
           </Link>
         </div>

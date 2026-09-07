@@ -17,7 +17,7 @@ function session(overrides: Partial<TrainingSession> = {}): TrainingSession {
 }
 
 describe('plan sync session deduplication', () => {
-  it('removes same-day sessions with the same modality', () => {
+  it('removes every duplicate session on the same local day', () => {
     const result = deduplicateSyncSessions([
       { week: 1, session: session({ id: 'first' }) },
       { week: 1, session: session({ id: 'duplicate', duration: 90 }) },
@@ -26,13 +26,13 @@ describe('plan sync session deduplication', () => {
     expect(result.map(({ session: entry }) => entry.id)).toEqual(['first'])
   })
 
-  it('keeps different modalities on the same day', () => {
+  it('does not publish different modalities on the same day', () => {
     const result = deduplicateSyncSessions([
       { week: 1, session: session({ id: 'ride', type: 'endurance' }) },
       { week: 1, session: session({ id: 'strength', type: 'strength' }) },
     ])
 
-    expect(result).toHaveLength(2)
+    expect(result).toHaveLength(1)
   })
 
   it('treats equipment order as irrelevant to modality identity', () => {
@@ -42,5 +42,17 @@ describe('plan sync session deduplication', () => {
     ])
 
     expect(result).toHaveLength(1)
+  })
+
+  it('deduplicates sessions using the athlete timezone', () => {
+    const result = deduplicateSyncSessions(
+      [
+        { week: 1, session: session({ id: 'first', date: new Date('2026-09-08T06:00:00.000Z') }) },
+        { week: 1, session: session({ id: 'duplicate', date: new Date('2026-09-09T03:00:00.000Z') }) },
+      ],
+      'America/New_York'
+    )
+
+    expect(result.map(({ session: entry }) => entry.id)).toEqual(['first'])
   })
 })
